@@ -171,7 +171,7 @@ export function getImageSize(
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // 配置默认值
       apiConfig: {
         baseURL: "https://www.packyapi.com/v1",

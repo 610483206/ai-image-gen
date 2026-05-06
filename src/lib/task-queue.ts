@@ -104,8 +104,6 @@ export class TaskQueue {
     });
 
     try {
-      let response: Response;
-
       console.log("[Task] 开始执行任务:", {
         taskId: task.id,
         hasReferenceImages: referenceImages && referenceImages.length > 0,
@@ -131,7 +129,7 @@ export class TaskQueue {
 
       // 统一使用 JSON 格式
       console.log("[Task] 发送 JSON 请求到 /api/generate");
-      response = await fetch("/api/generate", {
+      const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -76,7 +76,7 @@ export function useBalance() {
 
       // 如果所有端点都失败，设置为 null
       setBalance(null);
-    } catch (err) {
+    } catch {
       setBalance(null);
       setError("无法获取余额");
     } finally {

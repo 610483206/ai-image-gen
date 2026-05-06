@@ -463,7 +463,6 @@ function TaskCard({
 /** 历史记录卡片组件 */
 function HistoryCard({
   record,
-  onRestore,
 }: {
   record: {
     id: string;
