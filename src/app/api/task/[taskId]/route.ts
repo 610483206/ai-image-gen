@@ -30,10 +30,10 @@ export async function GET(
     }
 
     // 获取 KV 绑定
-    const env = process.env as unknown as CloudflareEnv;
-    const kv = env.TASKS_KV;
+    const kv = process.env.TASKS_KV as unknown as KVNamespace;
 
     if (!kv) {
+      console.error("[API] KV 绑定未找到");
       return NextResponse.json(
         { success: false, error: "KV 存储未配置" },
         { status: 500 }
