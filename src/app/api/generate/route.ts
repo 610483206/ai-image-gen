@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = "edge";
+
 /**
  * 后端代理：转发生图请求到 OpenAI 兼容 API
  * 避免浏览器跨域和 APIKey 暴露在 Network 面板中
@@ -118,8 +120,13 @@ export async function POST(request: NextRequest) {
         // 如果返回的是 URL，需要下载并转换为 base64
         const imageResponse = await fetch(data.data[0].url);
         const arrayBuffer = await imageResponse.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        imageBase64 = buffer.toString("base64");
+        const uint8Array = new Uint8Array(arrayBuffer);
+        // Edge Runtime 兼容的 base64 编码
+        let binary = "";
+        for (let i = 0; i < uint8Array.length; i++) {
+          binary += String.fromCharCode(uint8Array[i]);
+        }
+        imageBase64 = btoa(binary);
       } else {
         return NextResponse.json(
           { success: false, error: "API 返回的图片数据格式不正确" },
