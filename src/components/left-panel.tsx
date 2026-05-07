@@ -137,15 +137,13 @@ export function LeftPanel() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <div>
-            <h1 className="text-lg font-bold">AI 绘画</h1>
-            <p className="text-xs text-muted-foreground">用文字创造画面</p>
-          </div>
+          <h1 className="text-lg font-bold">AI 绘画</h1>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
+            className="h-8 w-8 p-0"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             title={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
           >
@@ -157,10 +155,11 @@ export function LeftPanel() {
           </Button>
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
+            className="h-8 w-8 p-0"
             onClick={() => setSettingsOpen(true)}
           >
-            <Settings className="h-5 w-5" />
+            <Settings className="h-4 w-4" />
           </Button>
         </div>
       </div>

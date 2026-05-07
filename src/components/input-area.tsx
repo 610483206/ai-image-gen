@@ -175,15 +175,15 @@ export function InputArea() {
     adjustTextareaHeight();
   }, [draft.prompt, adjustTextareaHeight]);
 
-  // 计算扇形展开的角度
+  // 扇形展开计算
   const getFanStyle = (index: number, total: number, isHovering: boolean) => {
     if (total <= 1) return {};
 
-    const spreadAngle = isHovering ? 60 : 20;
+    const spreadAngle = isHovering ? 50 : 15;
     const startAngle = -spreadAngle / 2;
     const angleStep = total > 1 ? spreadAngle / (total - 1) : 0;
     const angle = startAngle + angleStep * index;
-    const translateY = -Math.abs(angle) * 0.3;
+    const translateY = isHovering ? -12 : -4;
 
     return {
       transform: `rotate(${angle}deg) translateY(${translateY}px)`,
@@ -213,62 +213,67 @@ export function InputArea() {
       <div className="p-4">
         {/* 参考图 - 扇形展开效果 */}
         <div
-          className="mb-3 flex justify-center"
+          className="mb-3"
           onMouseEnter={() => imageCount > 1 && setIsImagesExpanded(true)}
           onMouseLeave={() => imageCount > 1 && setIsImagesExpanded(false)}
         >
-          <div className="relative flex items-end justify-center" style={{ height: imageCount > 1 ? "80px" : "56px" }}>
-            {draft.referenceImages.map((img, index) => {
-              const style = getFanStyle(index, imageCount, isImagesExpanded);
-              return (
-                <div
-                  key={img.id}
-                  className="absolute cursor-pointer"
-                  style={{
-                    ...style,
-                    zIndex: index,
-                    transformOrigin: "bottom center",
-                  }}
-                  onClick={() => setPreviewImage(img.preview)}
-                >
-                  <div className="relative group">
-                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md transition-all duration-300 group-hover:border-primary group-hover:scale-110 group-hover:shadow-lg">
-                      <img
-                        src={img.preview}
-                        alt="参考图"
-                        className="w-full h-full object-cover"
-                      />
+          <div className="flex items-center gap-2">
+            {/* 参考图扇形区域 */}
+            <div
+              className="relative flex items-end"
+              style={{ height: "56px", minWidth: imageCount > 0 ? `${60 + imageCount * 20}px` : "0px" }}
+            >
+              {draft.referenceImages.map((img, index) => {
+                const style = getFanStyle(index, imageCount, isImagesExpanded);
+                return (
+                  <div
+                    key={img.id}
+                    className="absolute cursor-pointer"
+                    style={{
+                      ...style,
+                      zIndex: index,
+                      transformOrigin: "bottom center",
+                      left: `${index * 20}px`,
+                    }}
+                    onClick={() => setPreviewImage(img.preview)}
+                  >
+                    <div className="relative group">
+                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md transition-all duration-300 group-hover:border-primary group-hover:scale-110">
+                        <img
+                          src={img.preview}
+                          alt="参考图"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeDraftReferenceImage(img.id);
+                        }}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 hover:scale-110"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeDraftReferenceImage(img.id);
-                      }}
-                      className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 hover:scale-110"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
                   </div>
-                </div>
-              );
-            })}
-            {imageCount < 3 && (
-              <div
-                className="absolute"
-                style={{
-                  left: `${50 + (imageCount * 8)}%`,
-                  transform: "translateX(-50%)",
-                  zIndex: imageCount,
-                }}
-              >
+                );
+              })}
+            </div>
+
+            {/* 上传按钮和计数 */}
+            <div className="flex items-center gap-2">
+              {imageCount < 3 && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-12 h-12 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground/50 hover:border-primary/50 hover:text-primary/50 transition-all duration-300 hover:scale-105 bg-background"
+                  className="w-12 h-12 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground/50 hover:border-primary/50 hover:text-primary/50 transition-all duration-300 hover:scale-105"
                 >
                   <Plus className="h-5 w-5" />
                 </button>
-              </div>
-            )}
+              )}
+              {imageCount > 0 && (
+                <span className="text-xs text-muted-foreground">{imageCount}/3</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -288,7 +293,6 @@ export function InputArea() {
             rows={1}
           />
 
-          {/* 输入框内的按钮组 */}
           <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
             <Button
               variant="ghost"
@@ -321,20 +325,25 @@ export function InputArea() {
           </div>
         </div>
 
-        {/* 参数工具栏 */}
+        {/* 参数工具栏 - 带提示 */}
         <div className="mt-3 flex items-center gap-2 flex-wrap">
-          <select
-            value={draft.selectedRatio}
-            onChange={(e) => setDraftRatio(e.target.value)}
-            className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-          >
-            {ASPECT_RATIO_PRESETS.map((preset) => (
-              <option key={preset.value} value={preset.value}>
-                {preset.label}
-              </option>
-            ))}
-            <option value="custom">自定义</option>
-          </select>
+          <div className="relative group">
+            <select
+              value={draft.selectedRatio}
+              onChange={(e) => setDraftRatio(e.target.value)}
+              className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+            >
+              {ASPECT_RATIO_PRESETS.map((preset) => (
+                <option key={preset.value} value={preset.value}>
+                  {preset.label}
+                </option>
+              ))}
+              <option value="custom">自定义</option>
+            </select>
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              比例（默认自动）
+            </div>
+          </div>
 
           {draft.selectedRatio === "custom" && (
             <Input
@@ -345,29 +354,39 @@ export function InputArea() {
             />
           )}
 
-          <select
-            value={draft.quality}
-            onChange={(e) => setDraftQuality(e.target.value as "low" | "medium" | "high" | "auto")}
-            className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-          >
-            {QUALITY_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div className="relative group">
+            <select
+              value={draft.quality}
+              onChange={(e) => setDraftQuality(e.target.value as "low" | "medium" | "high" | "auto")}
+              className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+            >
+              {QUALITY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              质量（默认高品质）
+            </div>
+          </div>
 
-          <select
-            value={draft.concurrency}
-            onChange={(e) => setDraftConcurrency(Number(e.target.value))}
-            className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-          >
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n}条
-              </option>
-            ))}
-          </select>
+          <div className="relative group">
+            <select
+              value={draft.concurrency}
+              onChange={(e) => setDraftConcurrency(Number(e.target.value))}
+              className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+            >
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>
+                  {n}条
+                </option>
+              ))}
+            </select>
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              并发（默认1）
+            </div>
+          </div>
 
           <label className="flex items-center gap-1.5 cursor-pointer ml-auto">
             <span className="text-xs text-muted-foreground">风控</span>
