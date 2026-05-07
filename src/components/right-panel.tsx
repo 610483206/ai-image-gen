@@ -221,9 +221,9 @@ function AssistantMessageBubble({
           <div
             className={`grid gap-2 ${
               message.tasks.length === 1
-                ? "grid-cols-1"
+                ? "grid-cols-1 max-w-xs"
                 : message.tasks.length === 2
-                  ? "grid-cols-2"
+                  ? "grid-cols-2 max-w-md"
                   : message.tasks.length <= 4
                     ? "grid-cols-2 sm:grid-cols-4"
                     : message.tasks.length <= 6
