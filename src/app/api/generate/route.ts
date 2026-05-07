@@ -57,10 +57,11 @@ export async function POST(request: NextRequest) {
       response_format: "b64_json",
     };
 
-    // 如果有参考图，添加到请求体
+    // 如果有参考图，添加到请求体（限制数量以减少请求大小）
     if (referenceImages.length > 0) {
-      // 将 base64 图片转换为 image 字段格式
-      const images = referenceImages.map(
+      // 限制最多 3 张参考图，减少请求体大小和处理时间
+      const limitedImages = referenceImages.slice(0, 3);
+      const images = limitedImages.map(
         (img: { data: string; name: string; type: string }) => {
           // 从 data URL 中提取纯 base64 数据
           const base64Data = img.data.includes(",")
@@ -70,17 +71,17 @@ export async function POST(request: NextRequest) {
         }
       );
       requestBody.image = images;
-      console.log("[API] 添加参考图数量:", images.length);
+      console.log("[API] 添加参考图数量:", images.length, "(原始:", referenceImages.length, ")");
     }
 
     const requestBodyStr = JSON.stringify(requestBody);
     console.log("[API] 请求体大小:", (requestBodyStr.length / 1024 / 1024).toFixed(2), "MB");
 
-    // 添加超时控制（5分钟）
+    // Cloudflare 免费计划超时限制 100 秒，设置 90 秒超时
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+    const timeout = setTimeout(() => controller.abort(), 90 * 1000);
 
-    console.log("[API] 开始发送请求...");
+    console.log("[API] 开始发送请求，超时时间 90 秒...");
 
     const response = await fetch(targetURL, {
       method: "POST",
@@ -148,6 +149,19 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("[API] 生图代理错误:", error);
+
+    // 超时错误特殊处理
+    if (error instanceof Error && error.name === "AbortError") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "请求超时，请减少参考图数量或稍后重试",
+          code: "timeout",
+        },
+        { status: 504 }
+      );
+    }
+
     return NextResponse.json(
       {
         success: false,
