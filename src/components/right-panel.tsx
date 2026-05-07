@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import { useAppStore, type GenerateTask } from "@/store/use-app-store";
-import { taskQueue } from "@/lib/task-queue";
-import { useHistory } from "@/hooks/use-history";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ImageLightbox } from "@/components/image-lightbox";
 import {
   Download,
@@ -17,182 +13,79 @@ import {
   Loader2,
   AlertCircle,
   Clock,
-  History,
-  ImageIcon,
   ZoomIn,
   Timer,
-  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useElapsedTime, useSimulatedProgress, getProgressText } from "@/hooks/use-elapsed-time";
-import { useBalance } from "@/hooks/use-balance";
-import { formatDistanceToNow } from "date-fns";
-import { zhCN } from "date-fns/locale";
-import { Wallet } from "lucide-react";
+import {
+  useElapsedTime,
+  useSimulatedProgress,
+  getProgressText,
+} from "@/hooks/use-elapsed-time";
 
 export function RightPanel() {
-  const { tasks, removeTask, clearTasks, setPrompt, clearReferenceImages } = useAppStore();
-  const { history, loading: historyLoading, restoreToTaskList } = useHistory();
-  const { balance, loading: balanceLoading } = useBalance();
+  const {
+    conversations,
+    currentConversationId,
+    regenerateSingleImage,
+    cancelGeneration,
+    removeMessage,
+  } = useAppStore();
 
-  const runningCount = tasks.filter((t) => t.status === "running").length;
-  const successCount = tasks.filter((t) => t.status === "success").length;
-  const failedCount = tasks.filter((t) => t.status === "failed").length;
-
-  /** 新建会话 */
-  const handleNewSession = () => {
-    // 取消所有运行中的任务
-    if (runningCount > 0) {
-      taskQueue.cancelAll();
-    }
-    // 清空任务列表
-    clearTasks();
-    // 清空提示词
-    setPrompt("");
-    // 清空参考图
-    clearReferenceImages();
-    toast.success("已新建会话");
-  };
+  const currentConversation = conversations.find(
+    (c) => c.id === currentConversationId
+  );
+  const messages = currentConversation?.messages || [];
 
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden">
       {/* 顶部提示条 */}
       <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-800 flex items-center gap-2 shrink-0">
         <span>⚠️</span>
-        <span>生成的图片仅保留 3 天，请及时下载保存</span>
+        <span>生成的图片仅保存在当前浏览器中，保留 3 天后自动清理。切换浏览器或清除浏览器数据会导致历史记录丢失，请及时下载保存重要图片。</span>
       </div>
 
-      {/* 紫色 Banner */}
-      <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-b px-6 py-4 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🎨</span>
-            <div>
-              <h2 className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                GPT-IMAGE 2.0 — 全球最强的 AI 生图模型
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                支持文字生成图片、多图编辑、风格迁移
-              </p>
-            </div>
+      {/* 对话流 */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {messages.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="max-w-4xl mx-auto space-y-6">
+            {messages.map((message) => {
+              if (message.role === "user") {
+                return (
+                  <UserMessageBubble key={message.id} message={message} />
+                );
+              }
+              return (
+                <AssistantMessageBubble
+                  key={message.id}
+                  message={message as { role: "assistant"; id: string; tasks: GenerateTask[]; params: { size: string; quality: string; concurrency: number; riskGuard: boolean }; durationMs?: number }}
+                  onRegenerateSingle={(taskIndex) =>
+                    regenerateSingleImage(message.id, taskIndex)
+                  }
+                  onCancel={cancelGeneration}
+                  onRemove={() => removeMessage(message.id)}
+                />
+              );
+            })}
           </div>
-
-          {/* 任务进度、余额和新建会话 */}
-          <div className="flex items-center gap-3">
-            {/* 余额显示 */}
-            {balance && !balanceLoading && (
-              <div className="flex items-center gap-1.5 text-sm bg-green-50 text-green-700 px-3 py-1.5 rounded-full">
-                <Wallet className="h-4 w-4" />
-                <span>${balance.remaining.toFixed(2)}</span>
-              </div>
-            )}
-            {tasks.length > 0 && (
-              <>
-                {runningCount > 0 && (
-                  <Badge variant="secondary" className="gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    生成中 {runningCount}
-                  </Badge>
-                )}
-                {successCount > 0 && (
-                  <Badge variant="default" className="bg-green-500">
-                    成功 {successCount}
-                  </Badge>
-                )}
-                {failedCount > 0 && (
-                  <Badge variant="destructive">失败 {failedCount}</Badge>
-                )}
-              </>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNewSession}
-              className="gap-1.5"
-            >
-              <Plus className="h-4 w-4" />
-              新建会话
-            </Button>
-          </div>
-        </div>
+        )}
       </div>
-
-      {/* 标签页 */}
-      <Tabs defaultValue="tasks" className="flex-1 flex flex-col overflow-hidden">
-        <div className="border-b px-6 shrink-0">
-          <TabsList>
-            <TabsTrigger value="tasks" className="gap-2">
-              <ImageIcon className="h-4 w-4" />
-              当前任务
-              {tasks.length > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                  {tasks.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2">
-              <History className="h-4 w-4" />
-              历史记录
-              {history.length > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                  {history.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* 当前任务 */}
-        <TabsContent value="tasks" className="flex-1 overflow-y-auto p-6 m-0">
-          {tasks.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {tasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onRemove={() => removeTask(task.id)}
-                  onRetry={() => taskQueue.retryTask(task.id)}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* 历史记录 */}
-        <TabsContent value="history" className="flex-1 overflow-y-auto p-6 m-0">
-          {historyLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : history.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <History className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">暂无历史记录</h3>
-              <p className="text-muted-foreground">
-                生成的图片将在这里显示，保留 3 天
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {history.map((record) => (
-                <HistoryCard
-                  key={record.id}
-                  record={record}
-                  onRestore={() => restoreToTaskList(record)}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }
 
 /** 空状态组件 */
 function EmptyState() {
+  const { setDraftPrompt } = useAppStore();
+
+  const examples = [
+    "一只穿着宇航服的猫咪站在月球表面",
+    "赛博朋克风格的东京街头夜景",
+    "水彩风格的中国山水画",
+  ];
+
   return (
     <div className="flex flex-col items-center justify-center h-full text-center">
       <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
@@ -200,247 +93,192 @@ function EmptyState() {
       </div>
       <h3 className="text-xl font-semibold mb-2">准备开始创作</h3>
       <p className="text-muted-foreground max-w-md mb-8">
-        请在左侧面板上传参考图并输入提示词，AI 将根据您的设定生成独特的视觉作品
+        输入描述你想要的图片，AI 将根据你的描述生成独特的视觉作品
       </p>
 
-      <div className="flex gap-3">
-        <button
-          onClick={() => {
-            const textarea = document.querySelector("textarea");
-            textarea?.focus();
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted hover:bg-muted/80 transition-colors text-sm"
-        >
-          <span>✏️</span> 输入提示词
-        </button>
-        <button
-          onClick={() => {
-            const fileInput = document.querySelector(
-              'input[type="file"]'
-            ) as HTMLInputElement;
-            fileInput?.click();
-          }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted hover:bg-muted/80 transition-colors text-sm"
-        >
-          <span>🖼️</span> 上传参考图
-        </button>
+      <div className="flex flex-wrap gap-2 justify-center">
+        {examples.map((example) => (
+          <button
+            key={example}
+            onClick={() => setDraftPrompt(example)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted hover:bg-muted/80 transition-colors text-sm"
+          >
+            {example}
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
-/** 任务卡片组件 */
-function TaskCard({
-  task,
-  onRemove,
-  onRetry,
+/** 用户消息气泡 */
+function UserMessageBubble({
+  message,
 }: {
-  task: GenerateTask;
-  onRemove: () => void;
-  onRetry: () => void;
+  message: {
+    id: string;
+    role: "user";
+    prompt: string;
+    referenceImages: { id: string; name: string; data: string }[];
+    params: { size: string; quality: string; concurrency: number; riskGuard: boolean };
+    createdAt: number;
+  };
 }) {
+  const setImageAsReference = useAppStore((s) => s.setImageAsReference);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-
-  // 计时器和进度条 - 使用 startedAt 作为基准时间，避免切换 tab 时重置
-  const { formatted: elapsedTime } = useElapsedTime(
-    task.startedAt,
-    task.completedAt
-  );
-  const progress = useSimulatedProgress(task.status === "running", task.startedAt);
-
-  /** 下载图片 */
-  const handleDownload = () => {
-    if (!task.imageBase64) return;
-
-    const link = document.createElement("a");
-    link.href = `data:image/png;base64,${task.imageBase64}`;
-    link.download = `ai-image-${task.id.slice(0, 8)}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("图片已下载");
-  };
-
-  /** 复制提示词 */
-  const handleCopyPrompt = () => {
-    navigator.clipboard.writeText(task.prompt);
-    toast.success("提示词已复制");
-  };
 
   return (
     <>
-      <div className="rounded-lg border bg-card overflow-hidden shadow-sm group">
-        {/* 图片区域 */}
-        <div className="aspect-square relative cursor-pointer">
-          {task.status === "success" && task.imageBase64 ? (
-            <>
-              <img
-                src={`data:image/png;base64,${task.imageBase64}`}
-                alt={task.prompt}
-                className="w-full h-full object-cover"
-                onClick={() => setLightboxSrc(task.imageBase64!)}
-              />
-              {/* 悬浮操作按钮 */}
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLightboxSrc(task.imageBase64!);
-                  }}
-                  title="放大预览"
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownload();
-                  }}
-                  title="下载图片"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCopyPrompt();
-                  }}
-                  title="复制提示词"
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRetry();
-                  }}
-                  title="重新生成"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </div>
-            </>
-          ) : task.status === "running" ? (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-4 relative overflow-hidden">
-              {/* 光影闪烁背景 */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 animate-shimmer" />
-              <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/5 via-transparent to-violet-500/5 animate-shimmer-delay" />
-
-              {/* 内容 */}
-              <div className="relative z-10 flex flex-col items-center gap-3">
-                <Loader2 className="h-10 w-10 text-primary animate-spin" />
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Timer className="h-4 w-4" />
-                  <span>{elapsedTime}</span>
-                </div>
-                {/* 动态状态文本 */}
-                <p className="text-sm font-medium text-primary animate-pulse">
-                  {getProgressText(progress)}
-                </p>
-                {/* 进度条 */}
-                <div className="w-full max-w-[80%]">
-                  <div className="h-2 bg-background/80 rounded-full overflow-hidden backdrop-blur-sm">
-                    <div
-                      className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out shadow-lg shadow-purple-500/30"
-                      style={{ width: `${progress}%` }}
-                    />
+      <div className="flex justify-end">
+        <div className="max-w-[80%] space-y-2">
+          {/* 参考图缩略图 */}
+          {message.referenceImages.length > 0 && (
+            <div className="flex gap-2 justify-end">
+              {message.referenceImages.map((img) => (
+                <div key={img.id} className="relative group">
+                  <img
+                    src={img.data}
+                    alt={img.name}
+                    className="w-16 h-16 rounded-lg object-cover cursor-pointer"
+                    onClick={() => setLightboxSrc(img.data)}
+                  />
+                  {/* 悬浮操作按钮 */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 rounded-lg">
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      className="h-8 w-8"
+                      onClick={() => setLightboxSrc(img.data)}
+                      title="放大预览"
+                    >
+                      <ZoomIn className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setImageAsReference(img.data);
+                        toast.success("已添加到参考图");
+                      }}
+                      title="以此图为参考"
+                    >
+                      <span className="text-sm">✏️</span>
+                    </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground text-center mt-1.5">
-                    {Math.round(progress)}%
-                  </p>
                 </div>
-              </div>
-            </div>
-          ) : task.status === "failed" ? (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-destructive/5 gap-2 p-4">
-              <AlertCircle className="h-8 w-8 text-destructive" />
-              <span className="text-xs text-destructive text-center line-clamp-3">
-                {task.error || "生成失败"}
-              </span>
-            </div>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-muted gap-2">
-              <Clock className="h-8 w-8 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">等待中...</span>
+              ))}
             </div>
           )}
+          {/* 消息内容 */}
+          <div className="bg-blue-50 text-blue-900 rounded-2xl rounded-tr-md px-4 py-3">
+            <p className="text-sm whitespace-pre-wrap">{message.prompt}</p>
+          </div>
         </div>
+      </div>
 
-        {/* 信息区域 */}
-        <div className="p-3">
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-            {task.prompt}
-          </p>
+      {/* 灯箱 */}
+      {lightboxSrc && (
+        <ImageLightbox
+          src={lightboxSrc}
+          alt="参考图预览"
+          onClose={() => setLightboxSrc(null)}
+        />
+      )}
+    </>
+  );
+}
 
-          {/* 耗时显示 */}
-          {task.status === "success" && task.completedAt && task.startedAt && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-              <Timer className="h-3 w-3" />
-              <span>耗时 {elapsedTime}</span>
-            </div>
+/** AI 消息气泡 */
+function AssistantMessageBubble({
+  message,
+  onRegenerateSingle,
+  onCancel,
+  onRemove,
+}: {
+  message: {
+    id: string;
+    role: "assistant";
+    tasks: GenerateTask[];
+    params: { size: string; quality: string; concurrency: number; riskGuard: boolean };
+    durationMs?: number;
+  };
+  onRegenerateSingle: (taskIndex: number) => void;
+  onCancel: () => void;
+  onRemove: () => void;
+}) {
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const hasRunning = message.tasks.some((t) => t.status === "running");
+  const allDone = message.tasks.every(
+    (t) => t.status === "success" || t.status === "failed"
+  );
+
+  return (
+    <>
+      <div className="flex justify-start">
+        <div className="max-w-[85%] space-y-3">
+          {/* 图片网格 - 靠左对齐，根据数量自适应 */}
+          <div
+            className={`grid gap-2 ${
+              message.tasks.length === 1
+                ? "grid-cols-1"
+                : message.tasks.length === 2
+                  ? "grid-cols-2"
+                  : message.tasks.length <= 4
+                    ? "grid-cols-2 sm:grid-cols-4"
+                    : message.tasks.length <= 6
+                      ? "grid-cols-3"
+                      : "grid-cols-3 sm:grid-cols-5"
+            }`}
+          >
+            {message.tasks.map((task, index) => (
+              <TaskImage
+                key={task.id}
+                task={task}
+                onRegenerate={() => onRegenerateSingle(index)}
+                onView={(src) => setLightboxSrc(src)}
+              />
+            ))}
+          </div>
+
+          {/* 参数信息 */}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span>📐 {message.params.size}</span>
+            <span>💎 {message.params.quality}</span>
+            <span>⚡ ×{message.params.concurrency}</span>
+            {message.params.riskGuard && <span>🛡️ 风控保险</span>}
+            {message.durationMs && (
+              <span>⏱️ {(message.durationMs / 1000).toFixed(1)}s</span>
+            )}
+          </div>
+
+          {/* 优化后的提示词 */}
+          {message.tasks.some((t) => t.status === "success" && t.revisedPrompt) && (
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer hover:text-foreground transition-colors">
+                📝 查看优化后的提示词
+              </summary>
+              <div className="mt-1 p-2 bg-muted rounded-md space-y-1">
+                {message.tasks
+                  .filter((t) => t.status === "success" && t.revisedPrompt)
+                  .map((t) => (
+                    <p key={t.id} className="whitespace-pre-wrap">{t.revisedPrompt}</p>
+                  ))}
+              </div>
+            </details>
           )}
 
           {/* 操作按钮 */}
-          <div className="flex gap-1.5">
-            {task.status === "success" && (
-              <>
-                <Button
-                  size="sm"
-                  className="flex-1 h-8"
-                  onClick={handleDownload}
-                >
-                  <Download className="h-3.5 w-3.5 mr-1" />
-                  下载
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 h-8"
-                  onClick={handleCopyPrompt}
-                >
-                  <Copy className="h-3.5 w-3.5 mr-1" />
-                  复制提示词
-                </Button>
-              </>
+          <div className="flex gap-2">
+            {hasRunning && (
+              <Button size="sm" variant="destructive" onClick={onCancel}>
+                停止生成
+              </Button>
             )}
-            {task.status === "failed" && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 h-8"
-                  onClick={onRetry}
-                >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                  重试
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-2"
-                  onClick={onRemove}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </>
-            )}
-            {task.status === "pending" && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="flex-1 h-8"
-                onClick={onRemove}
-              >
+            {allDone && (
+              <Button size="sm" variant="ghost" onClick={onRemove}>
                 <Trash2 className="h-3.5 w-3.5 mr-1" />
-                移除
+                删除
               </Button>
             )}
           </div>
@@ -451,8 +289,7 @@ function TaskCard({
       {lightboxSrc && (
         <ImageLightbox
           src={lightboxSrc}
-          alt={task.prompt}
-          prompt={task.prompt}
+          alt="AI 生成图片"
           onClose={() => setLightboxSrc(null)}
         />
       )}
@@ -460,138 +297,171 @@ function TaskCard({
   );
 }
 
-/** 历史记录卡片组件 */
-function HistoryCard({
-  record,
+/** 单张图片组件 */
+function TaskImage({
+  task,
+  onRegenerate,
+  onView,
 }: {
-  record: {
-    id: string;
-    prompt: string;
-    imageBase64: string;
-    size: string;
-    quality: string;
-    createdAt: number;
-    expiresAt: number;
-  };
-  onRestore: () => void;
+  task: GenerateTask;
+  onRegenerate: () => void;
+  onView: (src: string) => void;
 }) {
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const setImageAsReference = useAppStore((s) => s.setImageAsReference);
 
-  /** 下载图片 */
+  const { formatted: elapsedTime } = useElapsedTime(
+    task.startedAt,
+    task.completedAt
+  );
+  const progress = useSimulatedProgress(
+    task.status === "running",
+    task.startedAt
+  );
+
   const handleDownload = () => {
+    if (!task.imageBase64) return;
     const link = document.createElement("a");
-    link.href = `data:image/png;base64,${record.imageBase64}`;
-    link.download = `ai-image-${record.id.slice(0, 8)}.png`;
+    link.href = `data:image/png;base64,${task.imageBase64}`;
+    link.download = `ai-image-${task.id.slice(0, 8)}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     toast.success("图片已下载");
   };
 
-  /** 复制提示词 */
   const handleCopyPrompt = () => {
-    navigator.clipboard.writeText(record.prompt);
+    navigator.clipboard.writeText(task.prompt);
     toast.success("提示词已复制");
   };
 
-  const qualityLabel =
-    record.quality === "low"
-      ? "1K"
-      : record.quality === "medium"
-        ? "2K"
-        : record.quality === "high"
-          ? "4K"
-          : "自动";
-
-  const expiresIn = formatDistanceToNow(new Date(record.expiresAt), {
-    locale: zhCN,
-    addSuffix: false,
-  });
+  const handleUseAsReference = () => {
+    if (!task.imageBase64) return;
+    setImageAsReference(`data:image/png;base64,${task.imageBase64}`);
+    toast.success("已添加到参考图");
+  };
 
   return (
-    <>
-      <div className="rounded-lg border bg-card overflow-hidden shadow-sm group cursor-pointer">
-        {/* 图片区域 */}
-        <div className="aspect-square relative">
+    <div className="rounded-lg border bg-card overflow-hidden shadow-sm group aspect-square relative">
+      {task.status === "success" && task.imageBase64 ? (
+        <>
           <img
-            src={`data:image/png;base64,${record.imageBase64}`}
-            alt={record.prompt}
-            className="w-full h-full object-cover"
-            onClick={() => setLightboxSrc(record.imageBase64)}
+            src={`data:image/png;base64,${task.imageBase64}`}
+            alt={task.prompt}
+            className="w-full h-full object-cover cursor-pointer"
+            onClick={() => onView(task.imageBase64!)}
           />
           {/* 悬浮操作按钮 */}
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
             <Button
               size="icon"
               variant="secondary"
+              className="h-8 w-8"
               onClick={(e) => {
                 e.stopPropagation();
-                setLightboxSrc(record.imageBase64);
+                onView(task.imageBase64!);
               }}
               title="放大预览"
             >
-              <ZoomIn className="h-4 w-4" />
+              <ZoomIn className="h-3.5 w-3.5" />
             </Button>
             <Button
               size="icon"
               variant="secondary"
+              className="h-8 w-8"
               onClick={(e) => {
                 e.stopPropagation();
                 handleDownload();
               }}
               title="下载图片"
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-3.5 w-3.5" />
             </Button>
             <Button
               size="icon"
               variant="secondary"
+              className="h-8 w-8"
               onClick={(e) => {
                 e.stopPropagation();
                 handleCopyPrompt();
               }}
               title="复制提示词"
             >
-              <Copy className="h-4 w-4" />
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              className="h-8 w-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUseAsReference();
+              }}
+              title="以此图为参考继续编辑"
+            >
+              <span className="text-sm">✏️</span>
+            </Button>
+            <Button
+              size="icon"
+              variant="secondary"
+              className="h-8 w-8"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRegenerate();
+              }}
+              title="重新生成"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
             </Button>
           </div>
-          {/* 标签 */}
-          <div className="absolute top-2 left-2 flex gap-1">
-            <Badge variant="secondary" className="text-xs">
-              {record.size}
-            </Badge>
-            <Badge variant="secondary" className="text-xs">
-              {qualityLabel}
-            </Badge>
+          {/* 耗时 */}
+          {task.completedAt && task.startedAt && (
+            <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+              {elapsedTime}
+            </div>
+          )}
+        </>
+      ) : task.status === "running" ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-3 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 animate-shimmer" />
+          <div className="relative z-10 flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Timer className="h-3 w-3" />
+              <span>{elapsedTime}</span>
+            </div>
+            <p className="text-xs font-medium text-primary animate-pulse">
+              {getProgressText(progress)}
+            </p>
+            <div className="w-full max-w-[80%]">
+              <div className="h-1.5 bg-background/80 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-center mt-1">
+                {Math.round(progress)}%
+              </p>
+            </div>
           </div>
         </div>
-
-        {/* 信息区域 */}
-        <div className="p-3">
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
-            {record.prompt}
-          </p>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>
-              {formatDistanceToNow(new Date(record.createdAt), {
-                locale: zhCN,
-                addSuffix: true,
-              })}
-            </span>
-            <span>剩余 {expiresIn}</span>
-          </div>
+      ) : task.status === "failed" ? (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-destructive/5 gap-2 p-3">
+          <AlertCircle className="h-6 w-6 text-destructive" />
+          <span className="text-xs text-destructive text-center line-clamp-2">
+            {task.error || "生成失败"}
+          </span>
+          <Button size="sm" variant="outline" onClick={onRegenerate}>
+            <RotateCcw className="h-3 w-3 mr-1" />
+            重试
+          </Button>
         </div>
-      </div>
-
-      {/* 灯箱 */}
-      {lightboxSrc && (
-        <ImageLightbox
-          src={lightboxSrc}
-          alt={record.prompt}
-          prompt={record.prompt}
-          onClose={() => setLightboxSrc(null)}
-        />
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-muted gap-2">
+          <Clock className="h-6 w-6 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">等待中...</span>
+        </div>
       )}
-    </>
+    </div>
   );
 }

@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { LeftPanel } from "@/components/left-panel";
+import { useEffect, useState } from "react";
+import { useAppStore } from "@/store/use-app-store";
+import { ConversationList } from "@/components/conversation-list";
 import { RightPanel } from "@/components/right-panel";
+import { InputArea } from "@/components/input-area";
 import { SettingsDialog } from "@/components/settings-dialog";
+import { migrateV1ToV2 } from "@/lib/migration";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -14,16 +18,29 @@ import { Menu, Sparkles } from "lucide-react";
 
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { loadConversations } = useAppStore();
+
+  // 注册全局键盘快捷键
+  useKeyboardShortcuts();
+
+  // 应用启动时：执行迁移 + 加载会话
+  useEffect(() => {
+    const init = async () => {
+      await migrateV1ToV2();
+      await loadConversations();
+    };
+    init();
+  }, [loadConversations]);
 
   return (
     <main className="flex min-h-screen bg-background">
-      {/* 桌面端左侧面板 */}
-      <div className="hidden xl:block">
-        <LeftPanel />
+      {/* 桌面端左侧会话列表 */}
+      <div className="hidden lg:block">
+        <ConversationList />
       </div>
 
       {/* 移动端抽屉 */}
-      <div className="xl:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b">
         <div className="flex items-center justify-between p-3">
           <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
             <DrawerTrigger asChild>
@@ -33,7 +50,7 @@ export default function Home() {
             </DrawerTrigger>
             <DrawerContent className="h-[85vh]">
               <div className="overflow-y-auto h-full">
-                <LeftPanel />
+                <ConversationList />
               </div>
             </DrawerContent>
           </Drawer>
@@ -45,13 +62,14 @@ export default function Home() {
             <span className="font-semibold">AI 绘画</span>
           </div>
 
-          <div className="w-10" /> {/* 占位，保持标题居中 */}
+          <div className="w-10" />
         </div>
       </div>
 
-      {/* 右侧工作台 */}
-      <div className="flex-1 xl:ml-0 mt-[57px] xl:mt-0">
+      {/* 主内容区：对话流 + 底部输入 */}
+      <div className="flex-1 flex flex-col lg:ml-0 mt-[57px] lg:mt-0 h-screen overflow-hidden">
         <RightPanel />
+        <InputArea />
       </div>
 
       <SettingsDialog />

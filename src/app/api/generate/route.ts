@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 /**
  * 后端代理：转发生图请求到 OpenAI 兼容 API
  * 避免浏览器跨域和 APIKey 暴露在 Network 面板中
+ *
+ * 统一使用 /images/generations 接口，参考图以 base64 形式放在 image 字段
  */
 export async function POST(request: NextRequest) {
   try {
@@ -11,7 +13,7 @@ export async function POST(request: NextRequest) {
     const {
       baseURL: rawBaseURL,
       apiKey,
-      modelId = "gpt-image-1",
+      modelId = "gpt-image-2",
       prompt,
       size,
       quality,
