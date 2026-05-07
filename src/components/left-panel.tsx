@@ -22,8 +22,11 @@ import {
   StopCircle,
   ClipboardPaste,
   ZoomIn,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useRef, useCallback, useState, useEffect } from "react";
+import { useTheme } from "next-themes";
 
 export function LeftPanel() {
   const {
@@ -43,6 +46,7 @@ export function LeftPanel() {
     currentConversationId,
   } = useAppStore();
 
+  const { theme, setTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -138,13 +142,27 @@ export function LeftPanel() {
             <p className="text-xs text-muted-foreground">用文字创造画面</p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setSettingsOpen(true)}
-        >
-          <Settings className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            title={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 p-4 space-y-5">

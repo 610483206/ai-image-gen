@@ -5,15 +5,14 @@ import { useAppStore, ASPECT_RATIO_PRESETS, QUALITY_OPTIONS } from "@/store/use-
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Paperclip,
   Send,
   Square,
   X,
-  ZoomIn,
   ClipboardPaste,
   Loader2,
+  Plus,
 } from "lucide-react";
 import { ImageLightbox } from "@/components/image-lightbox";
 
@@ -80,7 +79,6 @@ export function InputArea() {
   /** 处理粘贴上传 */
   const handlePaste = useCallback(
     (e: ClipboardEvent) => {
-      // 只在 textarea 获得焦点或输入区域内处理粘贴
       const target = e.target as HTMLElement;
       const isInputArea = dropZoneRef.current?.contains(target);
       const isTextarea = target.tagName === "TEXTAREA";
@@ -109,24 +107,20 @@ export function InputArea() {
     [handleFileUpload]
   );
 
-  // 注册全局粘贴事件
   useEffect(() => {
     document.addEventListener("paste", handlePaste, true);
     return () => document.removeEventListener("paste", handlePaste, true);
   }, [handlePaste]);
 
-  /** 处理拖拽进入 */
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
   }, []);
 
-  /** 处理拖拽离开 */
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // 只有当离开整个区域时才设置为 false
     const rect = dropZoneRef.current?.getBoundingClientRect();
     if (rect) {
       const { clientX, clientY } = e;
@@ -141,13 +135,11 @@ export function InputArea() {
     }
   }, []);
 
-  /** 处理拖拽悬停 */
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
   }, []);
 
-  /** 处理拖拽放下 */
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -158,7 +150,6 @@ export function InputArea() {
     [handleFileUpload]
   );
 
-  /** 发送消息 */
   const handleSend = async () => {
     if (!draft.prompt.trim() && draft.referenceImages.length === 0) return;
     setIsSending(true);
@@ -169,7 +160,6 @@ export function InputArea() {
     }
   };
 
-  /** 键盘事件 */
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -177,12 +167,11 @@ export function InputArea() {
     }
   };
 
-  /** 自动调整 textarea 高度 */
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
     }
   }, []);
 
@@ -193,7 +182,7 @@ export function InputArea() {
   return (
     <div
       ref={dropZoneRef}
-      className={`border-t bg-card p-4 shrink-0 transition-colors ${
+      className={`border-t bg-card shrink-0 transition-colors ${
         isDragging ? "bg-primary/5 border-primary" : ""
       }`}
       onDragEnter={handleDragEnter}
@@ -208,112 +197,114 @@ export function InputArea() {
         </div>
       )}
 
-      {/* 参考图槽位 */}
-      {draft.referenceImages.length > 0 && (
-        <div className="flex gap-2.5 mb-3 overflow-x-auto pb-1">
-          {draft.referenceImages.map((img) => (
-            <div
-              key={img.id}
-              className="relative group shrink-0 cursor-pointer"
-              onClick={() => setPreviewImage(img.preview)}
-            >
-              <img
-                src={img.preview}
-                alt="参考图"
-                className="w-16 h-16 object-cover rounded-lg"
-              />
-              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg pointer-events-none">
-                <ZoomIn className="h-4 w-4 text-white" />
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeDraftReferenceImage(img.id);
-                }}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+      {/* 主输入区域 */}
+      <div className="p-4">
+        {/* 参考图槽位 - 圆形样式 */}
+        {draft.referenceImages.length > 0 && (
+          <div className="flex gap-3 mb-3 items-center">
+            {draft.referenceImages.map((img) => (
+              <div
+                key={img.id}
+                className="relative group shrink-0 cursor-pointer"
+                onClick={() => setPreviewImage(img.preview)}
               >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-          <Badge variant="secondary" className="shrink-0 self-center text-xs">
-            {draft.referenceImages.length}/3
-          </Badge>
-        </div>
-      )}
-
-      {/* 输入框 */}
-      <div className="flex gap-2 items-end">
-        <div className="flex-1 relative">
-          <Textarea
-            ref={textareaRef}
-            value={draft.prompt}
-            onChange={(e) => {
-              setDraftPrompt(e.target.value);
-              adjustTextareaHeight();
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="描述你想要的图片或修改建议..."
-            className="min-h-[60px] max-h-[200px] resize-y pr-10"
-            maxLength={20000}
-            rows={2}
-          />
-          <span className="absolute bottom-2 right-3 text-xs text-muted-foreground">
-            {draft.prompt.length}/20000
-          </span>
-        </div>
-
-        {/* 发送/停止按钮 */}
-        {hasRunningTasks ? (
-          <Button
-            variant="destructive"
-            size="icon"
-            className="h-[60px] w-11 shrink-0"
-            onClick={cancelGeneration}
-          >
-            <Square className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button
-            size="icon"
-            className="h-[60px] w-11 shrink-0 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
-            disabled={!draft.prompt.trim() && draft.referenceImages.length === 0 || isSending}
-            onClick={handleSend}
-          >
-            {isSending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
+                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-transparent transition-all duration-300 group-hover:border-primary group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-primary/20">
+                  <img
+                    src={img.preview}
+                    alt="参考图"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeDraftReferenceImage(img.id);
+                  }}
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 hover:scale-110"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-14 h-14 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground/50 hover:border-primary/50 hover:text-primary/50 transition-all duration-300 hover:scale-105"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
         )}
+
+        {/* 输入框和发送按钮 */}
+        <div className="flex gap-3 items-end">
+          <div className="flex-1 relative">
+            <Textarea
+              ref={textareaRef}
+              value={draft.prompt}
+              onChange={(e) => {
+                setDraftPrompt(e.target.value);
+                adjustTextareaHeight();
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="描述你想要的图片或修改建议..."
+              className="min-h-[52px] max-h-[160px] resize-none rounded-2xl bg-muted/50 border-border/50 focus:bg-muted transition-colors"
+              maxLength={20000}
+              rows={1}
+            />
+          </div>
+
+          {/* 发送/停止按钮 - 圆形 */}
+          {hasRunningTasks ? (
+            <Button
+              variant="destructive"
+              size="icon"
+              className="h-12 w-12 rounded-full shrink-0"
+              onClick={cancelGeneration}
+            >
+              <Square className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              className="h-12 w-12 rounded-full shrink-0 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/25"
+              disabled={!draft.prompt.trim() && draft.referenceImages.length === 0 || isSending}
+              onClick={handleSend}
+            >
+              {isSending ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* 参数工具栏 */}
-      <div className="flex items-center gap-2 mt-3 flex-wrap">
-        {/* 上传按钮（文字版） */}
+      <div className="px-4 pb-4 flex items-center gap-2 flex-wrap">
+        {/* 上传按钮 */}
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          className="h-7 text-xs gap-1"
+          className="h-8 rounded-full text-xs gap-1.5 border-dashed"
           onClick={() => fileInputRef.current?.click()}
         >
-          <Paperclip className="h-3 w-3" />
-          上传
+          <Paperclip className="h-3.5 w-3.5" />
+          上传参考图
         </Button>
 
         {/* 比例下拉 */}
         <select
           value={draft.selectedRatio}
           onChange={(e) => setDraftRatio(e.target.value)}
-          className="h-7 px-2 rounded-md border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+          className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
         >
           {ASPECT_RATIO_PRESETS.map((preset) => (
             <option key={preset.value} value={preset.value}>
-              📐 {preset.label}
+              {preset.label}
             </option>
           ))}
-          <option value="custom">📐 自定义</option>
+          <option value="custom">自定义</option>
         </select>
 
         {draft.selectedRatio === "custom" && (
@@ -321,7 +312,7 @@ export function InputArea() {
             value={draft.customRatio}
             onChange={(e) => setDraftCustomRatio(e.target.value)}
             placeholder="宽:高"
-            className="h-7 w-20 text-xs"
+            className="h-8 w-20 text-xs rounded-full"
           />
         )}
 
@@ -329,11 +320,11 @@ export function InputArea() {
         <select
           value={draft.quality}
           onChange={(e) => setDraftQuality(e.target.value as "low" | "medium" | "high" | "auto")}
-          className="h-7 px-2 rounded-md border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+          className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
         >
           {QUALITY_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
-              💎 {opt.label}
+              {opt.label}
             </option>
           ))}
         </select>
@@ -342,18 +333,17 @@ export function InputArea() {
         <select
           value={draft.concurrency}
           onChange={(e) => setDraftConcurrency(Number(e.target.value))}
-          className="h-7 px-2 rounded-md border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+          className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
         >
           {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
             <option key={n} value={n}>
-              ⚡ 并发{n}
+              {n}条
             </option>
           ))}
         </select>
 
         {/* 风控保险 */}
         <label className="flex items-center gap-1.5 cursor-pointer">
-          <span className="text-xs">🛡️</span>
           <div className="relative">
             <input
               type="checkbox"
@@ -368,9 +358,9 @@ export function InputArea() {
       </div>
 
       {/* 提示信息 */}
-      <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+      <div className="px-4 pb-3 flex items-center gap-1 text-xs text-muted-foreground/60">
         <ClipboardPaste className="h-3 w-3" />
-        <span>支持粘贴 (Ctrl+V) · 拖拽 · Enter 发送 · Shift+Enter 换行</span>
+        <span>粘贴 (Ctrl+V) · 拖拽 · Enter 发送</span>
       </div>
 
       {/* 隐藏的文件输入 */}
