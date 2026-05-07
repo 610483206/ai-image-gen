@@ -163,6 +163,53 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** 轮询任务状态 */
+async function pollTaskStatus(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<{ success: boolean; imageBase64?: string; revisedPrompt?: string; error?: string }> {
+  const maxAttempts = 120; // 最多轮询 120 次（约 10 分钟）
+  const pollInterval = 5000; // 每 5 秒轮询一次
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (signal?.aborted) {
+      throw new Error("已取消");
+    }
+
+    try {
+      const response = await fetch(`/api/task/${taskId}`, { signal });
+      const result = await response.json();
+
+      if (result.status === "completed") {
+        return {
+          success: true,
+          imageBase64: result.imageBase64,
+          revisedPrompt: result.revisedPrompt,
+        };
+      } else if (result.status === "failed") {
+        return {
+          success: false,
+          error: result.error || "任务失败",
+        };
+      }
+
+      // 继续轮询（pending 或 processing）
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    } catch {
+      if (signal?.aborted) {
+        throw new Error("已取消");
+      }
+      // 网络错误，继续重试
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    }
+  }
+
+  return {
+    success: false,
+    error: "任务超时，请重试",
+  };
+}
+
 /** 从首条用户消息生成会话标题 */
 function generateTitle(prompt: string): string {
   const cleaned = prompt.replace(/\n/g, " ").trim();
@@ -637,7 +684,7 @@ export const useAppStore = create<AppState>()(
           }));
         };
 
-        // 执行单个任务
+        // 执行单个任务（异步轮询模式）
         const executeTask = async (task: GenerateTask) => {
           const abortController = new AbortController();
           abortControllers.set(task.id, abortController);
@@ -655,7 +702,8 @@ export const useAppStore = create<AppState>()(
               type: img.file?.type || "image/png",
             }));
 
-            const response = await fetch("/api/generate", {
+            // 第一步：提交任务获取任务 ID
+            const submitResponse = await fetch("/api/generate", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -671,7 +719,17 @@ export const useAppStore = create<AppState>()(
               signal: abortController.signal,
             });
 
-            const result = await response.json();
+            const submitResult = await submitResponse.json();
+
+            if (!submitResult.success || !submitResult.taskId) {
+              throw new Error(submitResult.error || "提交任务失败");
+            }
+
+            // 第二步：轮询任务状态
+            const result = await pollTaskStatus(
+              submitResult.taskId,
+              abortController.signal
+            );
 
             if (result.success) {
               updateTaskStatus(task.id, {
@@ -685,7 +743,7 @@ export const useAppStore = create<AppState>()(
               await saveImageRecord(
                 task.id,
                 finalPrompt,
-                result.imageBase64,
+                result.imageBase64!,
                 result.revisedPrompt,
                 userMessage.params.size,
                 userMessage.params.quality,
@@ -696,7 +754,7 @@ export const useAppStore = create<AppState>()(
               // 风控保险：如果开启且是内容审核失败，静默处理
               if (
                 draft.riskGuard &&
-                result.error?.code === "content_policy_violation"
+                result.error?.includes("content_policy_violation")
               ) {
                 updateTaskStatus(task.id, {
                   status: "failed",
@@ -704,13 +762,13 @@ export const useAppStore = create<AppState>()(
                   completedAt: Date.now(),
                 });
               } else {
-                throw new Error(result.error?.message || "生成失败");
+                throw new Error(result.error || "生成失败");
               }
             }
           } catch (error: unknown) {
             if (
               error instanceof Error &&
-              error.name === "AbortError"
+              (error.name === "AbortError" || error.message === "已取消")
             ) {
               updateTaskStatus(task.id, {
                 status: "failed",
@@ -866,7 +924,8 @@ export const useAppStore = create<AppState>()(
           }));
 
           try {
-            const response = await fetch("/api/generate", {
+            // 第一步：提交任务获取任务 ID
+            const submitResponse = await fetch("/api/generate", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -882,7 +941,17 @@ export const useAppStore = create<AppState>()(
               signal: abortController.signal,
             });
 
-            const result = await response.json();
+            const submitResult = await submitResponse.json();
+
+            if (!submitResult.success || !submitResult.taskId) {
+              throw new Error(submitResult.error || "提交任务失败");
+            }
+
+            // 第二步：轮询任务状态
+            const result = await pollTaskStatus(
+              submitResult.taskId,
+              abortController.signal
+            );
 
             if (result.success) {
               set((s) => ({
@@ -915,7 +984,7 @@ export const useAppStore = create<AppState>()(
                 ),
               }));
             } else {
-              throw new Error(result.error?.message || "生成失败");
+              throw new Error(result.error || "生成失败");
             }
           } catch (error: unknown) {
             set((s) => ({
@@ -1050,7 +1119,10 @@ export const useAppStore = create<AppState>()(
         }));
 
         try {
-          const response = await fetch("/api/generate", {
+          const abortController = new AbortController();
+
+          // 第一步：提交任务获取任务 ID
+          const submitResponse = await fetch("/api/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1063,9 +1135,20 @@ export const useAppStore = create<AppState>()(
               referenceImages:
                 refImagesData.length > 0 ? refImagesData : undefined,
             }),
+            signal: abortController.signal,
           });
 
-          const result = await response.json();
+          const submitResult = await submitResponse.json();
+
+          if (!submitResult.success || !submitResult.taskId) {
+            throw new Error(submitResult.error || "提交任务失败");
+          }
+
+          // 第二步：轮询任务状态
+          const result = await pollTaskStatus(
+            submitResult.taskId,
+            abortController.signal
+          );
 
           if (result.success) {
             set((s) => ({
@@ -1098,7 +1181,7 @@ export const useAppStore = create<AppState>()(
               ),
             }));
           } else {
-            throw new Error(result.error?.message || "生成失败");
+            throw new Error(result.error || "生成失败");
           }
         } catch (error: unknown) {
           set((s) => ({

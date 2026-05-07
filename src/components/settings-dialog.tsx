@@ -17,10 +17,7 @@ import { Eye, EyeOff, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 /** 常用模型 ID 预设 */
 const MODEL_PRESETS = [
-  { label: "GPT-Image 1 (OpenAI 官方)", value: "gpt-image-1" },
-  { label: "GPT-Image 2 (中转站)", value: "gpt-image-2" },
-  { label: "DALL-E 3", value: "dall-e-3" },
-  { label: "DALL-E 2", value: "dall-e-2" },
+  { label: "GPT-Image 2", value: "gpt-image-2" },
 ];
 
 export function SettingsDialog() {
