@@ -143,27 +143,27 @@ function UserMessageBubble({
                     onClick={() => setLightboxSrc(img.data)}
                   />
                   {/* 悬浮操作按钮 */}
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 rounded-lg">
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1 rounded-lg">
                     <Button
                       size="icon"
                       variant="secondary"
-                      className="h-8 w-8"
+                      className="h-7 w-7"
                       onClick={() => setLightboxSrc(img.data)}
                       title="放大预览"
                     >
-                      <ZoomIn className="h-3.5 w-3.5" />
+                      <ZoomIn className="h-3 w-3" />
                     </Button>
                     <Button
                       size="icon"
                       variant="secondary"
-                      className="h-8 w-8"
+                      className="h-7 w-7"
                       onClick={() => {
                         setImageAsReference(img.data);
                         toast.success("已添加到参考图");
                       }}
                       title="以此图为参考"
                     >
-                      <span className="text-sm">✏️</span>
+                      <span className="text-xs">✏️</span>
                     </Button>
                   </div>
                 </div>

@@ -210,7 +210,7 @@ export function InputArea() {
 
       {/* 参考图槽位 */}
       {draft.referenceImages.length > 0 && (
-        <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+        <div className="flex gap-2.5 mb-3 overflow-x-auto pb-1">
           {draft.referenceImages.map((img) => (
             <div
               key={img.id}
@@ -220,7 +220,7 @@ export function InputArea() {
               <img
                 src={img.preview}
                 alt="参考图"
-                className="w-14 h-14 object-cover rounded-lg"
+                className="w-16 h-16 object-cover rounded-lg"
               />
               <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg pointer-events-none">
                 <ZoomIn className="h-4 w-4 text-white" />
@@ -230,9 +230,9 @@ export function InputArea() {
                   e.stopPropagation();
                   removeDraftReferenceImage(img.id);
                 }}
-                className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
               >
-                <X className="h-2.5 w-2.5" />
+                <X className="h-3 w-3" />
               </button>
             </div>
           ))}
@@ -263,22 +263,12 @@ export function InputArea() {
           </span>
         </div>
 
-        {/* 上传按钮 */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-11 w-11 shrink-0"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Paperclip className="h-4 w-4" />
-        </Button>
-
         {/* 发送/停止按钮 */}
         {hasRunningTasks ? (
           <Button
             variant="destructive"
             size="icon"
-            className="h-11 w-11 shrink-0"
+            className="h-[60px] w-11 shrink-0"
             onClick={cancelGeneration}
           >
             <Square className="h-4 w-4" />
@@ -286,7 +276,7 @@ export function InputArea() {
         ) : (
           <Button
             size="icon"
-            className="h-11 w-11 shrink-0 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+            className="h-[60px] w-11 shrink-0 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
             disabled={!draft.prompt.trim() && draft.referenceImages.length === 0 || isSending}
             onClick={handleSend}
           >
