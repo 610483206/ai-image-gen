@@ -163,51 +163,70 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** 轮询任务状态 */
-async function pollTaskStatus(
-  taskId: string,
+/** 通过 SSE 流式调用生图 API */
+async function streamGenerate(
+  params: {
+    baseURL: string;
+    apiKey: string;
+    modelId: string;
+    prompt: string;
+    size: string;
+    quality: string;
+    referenceImages?: { data: string; name: string; type: string }[];
+  },
   signal?: AbortSignal
 ): Promise<{ success: boolean; imageBase64?: string; revisedPrompt?: string; error?: string }> {
-  const maxAttempts = 120; // 最多轮询 120 次（约 10 分钟）
-  const pollInterval = 5000; // 每 5 秒轮询一次
+  const response = await fetch("/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+    signal,
+  });
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    if (signal?.aborted) {
-      throw new Error("已取消");
-    }
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    return { success: false, error: error?.error || `HTTP ${response.status}` };
+  }
 
-    try {
-      const response = await fetch(`/api/task/${taskId}`, { signal });
-      const result = await response.json();
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return { success: false, error: "无法读取响应流" };
+  }
 
-      if (result.status === "completed") {
-        return {
-          success: true,
-          imageBase64: result.imageBase64,
-          revisedPrompt: result.revisedPrompt,
-        };
-      } else if (result.status === "failed") {
-        return {
-          success: false,
-          error: result.error || "任务失败",
-        };
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6));
+
+          if (data.type === "complete") {
+            return {
+              success: true,
+              imageBase64: data.imageBase64,
+              revisedPrompt: data.revisedPrompt,
+            };
+          } else if (data.type === "error") {
+            return { success: false, error: data.error };
+          }
+          // heartbeat 和 progress 事件忽略，继续读取
+        } catch {
+          // 解析错误忽略
+        }
       }
-
-      // 继续轮询（pending 或 processing）
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
-    } catch {
-      if (signal?.aborted) {
-        throw new Error("已取消");
-      }
-      // 网络错误，继续重试
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
   }
 
-  return {
-    success: false,
-    error: "任务超时，请重试",
-  };
+  return { success: false, error: "连接意外关闭" };
 }
 
 /** 从首条用户消息生成会话标题 */
@@ -684,7 +703,7 @@ export const useAppStore = create<AppState>()(
           }));
         };
 
-        // 执行单个任务（异步轮询模式）
+        // 执行单个任务（SSE 流式模式）
         const executeTask = async (task: GenerateTask) => {
           const abortController = new AbortController();
           abortControllers.set(task.id, abortController);
@@ -702,32 +721,17 @@ export const useAppStore = create<AppState>()(
               type: img.file?.type || "image/png",
             }));
 
-            // 第一步：提交任务获取任务 ID
-            const submitResponse = await fetch("/api/generate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            // 通过 SSE 流式调用
+            const result = await streamGenerate(
+              {
                 baseURL: state.apiConfig.baseURL,
                 apiKey: getDecodedApiKey(),
                 modelId: state.apiConfig.modelId,
                 prompt: finalPrompt,
                 size: userMessage.params.size,
                 quality: userMessage.params.quality,
-                referenceImages:
-                  refImagesData.length > 0 ? refImagesData : undefined,
-              }),
-              signal: abortController.signal,
-            });
-
-            const submitResult = await submitResponse.json();
-
-            if (!submitResult.success || !submitResult.taskId) {
-              throw new Error(submitResult.error || "提交任务失败");
-            }
-
-            // 第二步：轮询任务状态
-            const result = await pollTaskStatus(
-              submitResult.taskId,
+                referenceImages: refImagesData.length > 0 ? refImagesData : undefined,
+              },
               abortController.signal
             );
 
@@ -751,7 +755,6 @@ export const useAppStore = create<AppState>()(
                 convId!
               );
             } else {
-              // 风控保险：如果开启且是内容审核失败，静默处理
               if (
                 draft.riskGuard &&
                 result.error?.includes("content_policy_violation")
@@ -778,8 +781,7 @@ export const useAppStore = create<AppState>()(
             } else {
               updateTaskStatus(task.id, {
                 status: "failed",
-                error:
-                  error instanceof Error ? error.message : "未知错误",
+                error: error instanceof Error ? error.message : "未知错误",
                 completedAt: Date.now(),
               });
             }
@@ -924,32 +926,17 @@ export const useAppStore = create<AppState>()(
           }));
 
           try {
-            // 第一步：提交任务获取任务 ID
-            const submitResponse = await fetch("/api/generate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
+            // 通过 SSE 流式调用
+            const result = await streamGenerate(
+              {
                 baseURL: state.apiConfig.baseURL,
                 apiKey: getDecodedApiKey(),
                 modelId: state.apiConfig.modelId,
                 prompt: userMsg.prompt,
                 size: userMsg.params.size,
                 quality: userMsg.params.quality,
-                referenceImages:
-                  refImagesData.length > 0 ? refImagesData : undefined,
-              }),
-              signal: abortController.signal,
-            });
-
-            const submitResult = await submitResponse.json();
-
-            if (!submitResult.success || !submitResult.taskId) {
-              throw new Error(submitResult.error || "提交任务失败");
-            }
-
-            // 第二步：轮询任务状态
-            const result = await pollTaskStatus(
-              submitResult.taskId,
+                referenceImages: refImagesData.length > 0 ? refImagesData : undefined,
+              },
               abortController.signal
             );
 
@@ -1121,32 +1108,17 @@ export const useAppStore = create<AppState>()(
         try {
           const abortController = new AbortController();
 
-          // 第一步：提交任务获取任务 ID
-          const submitResponse = await fetch("/api/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          // 通过 SSE 流式调用
+          const result = await streamGenerate(
+            {
               baseURL: state.apiConfig.baseURL,
               apiKey: getDecodedApiKey(),
               modelId: state.apiConfig.modelId,
               prompt: userMsg.prompt,
               size: userMsg.params.size,
               quality: userMsg.params.quality,
-              referenceImages:
-                refImagesData.length > 0 ? refImagesData : undefined,
-            }),
-            signal: abortController.signal,
-          });
-
-          const submitResult = await submitResponse.json();
-
-          if (!submitResult.success || !submitResult.taskId) {
-            throw new Error(submitResult.error || "提交任务失败");
-          }
-
-          // 第二步：轮询任务状态
-          const result = await pollTaskStatus(
-            submitResult.taskId,
+              referenceImages: refImagesData.length > 0 ? refImagesData : undefined,
+            },
             abortController.signal
           );
 

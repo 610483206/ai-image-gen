@@ -4,21 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="67a73fcf-7d2a-4b71-9049-be2a650ecfc8" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/components/conversation-list.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/components/input-area.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/hooks/use-keyboard-shortcuts.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/lib/migration.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/api/generate/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/api/generate/route.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/app/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/left-panel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/left-panel.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/right-panel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/right-panel.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/hooks/use-history.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/hooks/use-history.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lib/db.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/db.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/lib/task-queue.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/lib/task-queue.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/store/use-app-store.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/store/use-app-store.ts" afterDir="false" />
-    </list>
+    <list default="true" id="67a73fcf-7d2a-4b71-9049-be2a650ecfc8" name="Changes" comment="fix(api): 优化请求体大小并添加超时处理&#10;&#10;- 限制参考图最多上传3张以减少请求体大小和处理时间&#10;- 日志中显示添加的参考图数量及原始数量&#10;- 将请求超时设置为90秒，避免Cloudflare免费计划100秒限制&#10;- 超时错误时返回明确的超时提示和504状态码&#10;- 更新日志信息，提示请求开始及超时时间" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -107,11 +93,67 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1778132459622</updated>
-      <workItem from="1778132462687" duration="2295000" />
+      <workItem from="1778132462687" duration="10390000" />
     </task>
+    <task id="LOCAL-00001" summary="init">
+      <option name="closed" value="true" />
+      <created>1778137449023</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1778137449023</updated>
+    </task>
+    <task id="LOCAL-00002" summary="解决兼容问题">
+      <option name="closed" value="true" />
+      <created>1778142919720</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1778142919720</updated>
+    </task>
+    <task id="LOCAL-00003" summary="fix(api): 优化请求体大小并添加超时处理&#10;&#10;- 限制参考图最多上传3张以减少请求体大小和处理时间&#10;- 日志中显示添加的参考图数量及原始数量&#10;- 将请求超时设置为90秒，避免Cloudflare免费计划100秒限制&#10;- 超时错误时返回明确的超时提示和504状态码&#10;- 更新日志信息，提示请求开始及超时时间">
+      <option name="closed" value="true" />
+      <created>1778144081010</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1778144081010</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="origin/main" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <option name="CHECK_CODE_SMELLS_BEFORE_PROJECT_COMMIT" value="false" />
+    <option name="CHECK_NEW_TODO" value="false" />
+    <MESSAGE value="init" />
+    <MESSAGE value="解决兼容问题" />
+    <MESSAGE value="fix(api): 优化请求体大小并添加超时处理&#10;&#10;- 限制参考图最多上传3张以减少请求体大小和处理时间&#10;- 日志中显示添加的参考图数量及原始数量&#10;- 将请求超时设置为90秒，避免Cloudflare免费计划100秒限制&#10;- 超时错误时返回明确的超时提示和504状态码&#10;- 更新日志信息，提示请求开始及超时时间" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix(api): 优化请求体大小并添加超时处理&#10;&#10;- 限制参考图最多上传3张以减少请求体大小和处理时间&#10;- 日志中显示添加的参考图数量及原始数量&#10;- 将请求超时设置为90秒，避免Cloudflare免费计划100秒限制&#10;- 超时错误时返回明确的超时提示和504状态码&#10;- 更新日志信息，提示请求开始及超时时间" />
   </component>
 </project>

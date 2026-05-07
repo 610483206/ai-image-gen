@@ -1,87 +1,54 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 export const runtime = "edge";
 
-interface TaskResult {
-  status: "pending" | "processing" | "completed" | "failed";
-  imageBase64?: string;
-  revisedPrompt?: string;
-  error?: string;
-  createdAt: number;
-  completedAt?: number;
-}
-
-// Cloudflare Workers 全局类型
-declare global {
-  // eslint-disable-next-line no-var
-  var __CLOUDFLARE_WAIT_UNTIL__: ((promise: Promise<unknown>) => void) | undefined;
-}
-
 /**
- * 异步生图 API
- * 接收请求后立即返回任务 ID，后台处理生图任务
- * 前端通过轮询 /api/task/[taskId] 获取结果
+ * 流式生图 API
+ * 使用 SSE 保持连接活跃，避免 Cloudflare 100 秒超时
  */
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
+  const body = await request.json();
 
-    const {
-      baseURL: rawBaseURL,
-      apiKey,
-      modelId = "gpt-image-2",
-      prompt,
-      size,
-      quality,
-      referenceImages = [],
-    } = body;
+  const {
+    baseURL: rawBaseURL,
+    apiKey,
+    modelId = "gpt-image-2",
+    prompt,
+    size,
+    quality,
+    referenceImages = [],
+  } = body;
 
-    // 参数校验
-    if (!rawBaseURL || !apiKey || !prompt) {
-      return NextResponse.json(
-        { success: false, error: "缺少必要参数：baseURL、apiKey、prompt" },
-        { status: 400 }
-      );
-    }
+  // 参数校验
+  if (!rawBaseURL || !apiKey || !prompt) {
+    return new Response(
+      JSON.stringify({ success: false, error: "缺少必要参数：baseURL、apiKey、prompt" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
 
-    // 生成任务 ID
-    const taskId = crypto.randomUUID();
+  // 创建 SSE 流
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      // 发送 SSE 事件的辅助函数
+      const sendEvent = (data: Record<string, unknown>) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+      };
 
-    // 获取 KV 绑定
-    // Cloudflare Pages 通过 process.env 提供绑定
-    const kv = process.env.TASKS_KV as unknown as KVNamespace;
+      // 心跳定时器，每 15 秒发送一次心跳
+      const heartbeat = setInterval(() => {
+        sendEvent({ type: "heartbeat", timestamp: Date.now() });
+      }, 15000);
 
-    if (!kv) {
-      console.error("[API] KV 绑定未找到");
-      return NextResponse.json(
-        { success: false, error: "KV 存储未配置" },
-        { status: 500 }
-      );
-    }
-
-    // 初始化任务状态
-    const initialTask: TaskResult = {
-      status: "pending",
-      createdAt: Date.now(),
-    };
-    await kv.put(taskId, JSON.stringify(initialTask), { expirationTtl: 3600 });
-
-    // 后台处理任务的函数
-    const processTask = async () => {
       try {
-        console.log("[API] 开始处理任务:", taskId);
-
-        // 更新状态为处理中
-        const processingTask: TaskResult = {
-          status: "processing",
-          createdAt: initialTask.createdAt,
-        };
-        await kv.put(taskId, JSON.stringify(processingTask), { expirationTtl: 3600 });
+        // 发送开始事件
+        sendEvent({ type: "start", message: "开始处理请求..." });
 
         // 移除末尾斜杠
         const baseURL = rawBaseURL.replace(/\/+$/, "");
         const targetURL = `${baseURL}/images/generations`;
-        console.log("[API] 请求上游 API:", targetURL);
+        sendEvent({ type: "progress", message: "正在调用上游 API..." });
 
         // 构建请求体
         const requestBody: Record<string, unknown> = {
@@ -105,11 +72,10 @@ export async function POST(request: NextRequest) {
             }
           );
           requestBody.image = images;
-          console.log("[API] 参考图数量:", images.length);
+          sendEvent({ type: "progress", message: `已添加 ${images.length} 张参考图` });
         }
 
-        const requestBodyStr = JSON.stringify(requestBody);
-        console.log("[API] 请求体大小:", (requestBodyStr.length / 1024 / 1024).toFixed(2), "MB");
+        sendEvent({ type: "progress", message: "等待上游 API 响应..." });
 
         // 发送请求到上游 API
         const response = await fetch(targetURL, {
@@ -118,28 +84,20 @@ export async function POST(request: NextRequest) {
             Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
           },
-          body: requestBodyStr,
+          body: JSON.stringify(requestBody),
         });
-
-        console.log("[API] 上游响应状态:", response.status);
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => null);
           const errorMessage =
             errorData?.error?.message || `API 请求失败: HTTP ${response.status}`;
-          console.error("[API] 上游错误:", errorMessage);
-
-          await kv.put(taskId, JSON.stringify({
-            status: "failed",
-            error: errorMessage,
-            createdAt: initialTask.createdAt,
-            completedAt: Date.now(),
-          }), { expirationTtl: 3600 });
+          sendEvent({ type: "error", error: errorMessage });
+          controller.close();
           return;
         }
 
+        sendEvent({ type: "progress", message: "正在处理返回数据..." });
         const data = await response.json();
-        console.log("[API] 收到上游响应");
 
         // 提取图片数据
         let imageBase64: string;
@@ -149,6 +107,7 @@ export async function POST(request: NextRequest) {
           if (data.data[0].b64_json) {
             imageBase64 = data.data[0].b64_json;
           } else if (data.data[0].url) {
+            sendEvent({ type: "progress", message: "正在下载图片..." });
             const imageResponse = await fetch(data.data[0].url);
             const arrayBuffer = await imageResponse.arrayBuffer();
             const uint8Array = new Uint8Array(arrayBuffer);
@@ -158,63 +117,41 @@ export async function POST(request: NextRequest) {
             }
             imageBase64 = btoa(binary);
           } else {
-            throw new Error("API 返回的图片数据格式不正确");
+            sendEvent({ type: "error", error: "API 返回的图片数据格式不正确" });
+            controller.close();
+            return;
           }
           revisedPrompt = data.data[0].revised_prompt;
         } else {
-          throw new Error("API 未返回图片数据");
+          sendEvent({ type: "error", error: "API 未返回图片数据" });
+          controller.close();
+          return;
         }
 
-        // 更新任务状态为完成
-        console.log("[API] 任务完成:", taskId);
-        await kv.put(taskId, JSON.stringify({
-          status: "completed",
+        // 发送完成事件
+        sendEvent({
+          type: "complete",
+          success: true,
           imageBase64,
           revisedPrompt,
-          createdAt: initialTask.createdAt,
-          completedAt: Date.now(),
-        }), { expirationTtl: 3600 });
+        });
       } catch (error) {
-        console.error("[API] 任务处理错误:", error);
-        await kv.put(taskId, JSON.stringify({
-          status: "failed",
+        sendEvent({
+          type: "error",
           error: error instanceof Error ? error.message : "服务器内部错误",
-          createdAt: initialTask.createdAt,
-          completedAt: Date.now(),
-        }), { expirationTtl: 3600 });
+        });
+      } finally {
+        clearInterval(heartbeat);
+        controller.close();
       }
-    };
+    },
+  });
 
-    // 使用 waitUntil 保持 Worker 运行直到任务完成
-    // Cloudflare Workers 通过 globalThis 提供 waitUntil
-    const waitUntil = (globalThis as Record<string, unknown>).__CLOUDFLARE_WAIT_UNTIL__
-      || (globalThis as Record<string, unknown>).waitUntil;
-
-    if (typeof waitUntil === "function") {
-      console.log("[API] 使用 waitUntil 执行后台任务");
-      waitUntil(processTask());
-    } else {
-      console.log("[API] waitUntil 不可用，使用 setTimeout");
-      // 回退方案：使用 setTimeout（可能不完全可靠）
-      setTimeout(() => {
-        processTask().catch(console.error);
-      }, 0);
-    }
-
-    // 立即返回任务 ID
-    return NextResponse.json({
-      success: true,
-      taskId,
-      message: "任务已提交，请轮询查询结果",
-    });
-  } catch (error) {
-    console.error("[API] 生图代理错误:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "服务器内部错误",
-      },
-      { status: 500 }
-    );
-  }
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
