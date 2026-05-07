@@ -24,7 +24,6 @@ export function InputArea() {
     setDraftCustomRatio,
     setDraftQuality,
     setDraftConcurrency,
-    setDraftRiskGuard,
     sendMessage,
     cancelGeneration,
     conversations,
@@ -331,7 +330,7 @@ export function InputArea() {
             <select
               value={draft.selectedRatio}
               onChange={(e) => setDraftRatio(e.target.value)}
-              className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-8 pl-7 pr-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
             >
               {ASPECT_RATIO_PRESETS.map((preset) => (
                 <option key={preset.value} value={preset.value}>
@@ -340,6 +339,7 @@ export function InputArea() {
               ))}
               <option value="custom">自定义</option>
             </select>
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs">📐</span>
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
               比例（默认自动）
             </div>
@@ -358,7 +358,7 @@ export function InputArea() {
             <select
               value={draft.quality}
               onChange={(e) => setDraftQuality(e.target.value as "low" | "medium" | "high" | "auto")}
-              className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-8 pl-7 pr-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
             >
               {QUALITY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -366,6 +366,7 @@ export function InputArea() {
                 </option>
               ))}
             </select>
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs">💎</span>
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
               质量（默认高品质）
             </div>
@@ -375,31 +376,19 @@ export function InputArea() {
             <select
               value={draft.concurrency}
               onChange={(e) => setDraftConcurrency(Number(e.target.value))}
-              className="h-8 px-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-8 pl-7 pr-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
             >
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+              {Array.from({ length: 3 }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
-                  {n}条
+                  {n}张
                 </option>
               ))}
             </select>
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs">⚡</span>
             <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
               并发（默认1）
             </div>
           </div>
-
-          <label className="flex items-center gap-1.5 cursor-pointer ml-auto">
-            <span className="text-xs text-muted-foreground">风控</span>
-            <div className="relative">
-              <input
-                type="checkbox"
-                checked={draft.riskGuard}
-                onChange={(e) => setDraftRiskGuard(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-8 h-4 bg-muted rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
-            </div>
-          </label>
         </div>
       </div>
 

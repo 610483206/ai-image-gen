@@ -139,12 +139,10 @@ export function LeftPanel() {
           </div>
           <h1 className="text-lg font-bold">AI 绘画</h1>
         </div>
-        <div className="flex items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
+        <div className="flex items-center gap-1">
+          <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors"
             title={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
           >
             {theme === "dark" ? (
@@ -152,15 +150,13 @@ export function LeftPanel() {
             ) : (
               <Moon className="h-4 w-4" />
             )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
+          </button>
+          <button
             onClick={() => setSettingsOpen(true)}
+            className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors"
           >
             <Settings className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
       </div>
 
