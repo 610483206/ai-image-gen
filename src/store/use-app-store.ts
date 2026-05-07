@@ -375,7 +375,7 @@ export const useAppStore = create<AppState>()(
             ...state.draft,
             referenceImages: [...state.draft.referenceImages, image].slice(
               0,
-              5
+              3
             ),
           },
         })),
@@ -580,7 +580,7 @@ export const useAppStore = create<AppState>()(
           if (successTasks.length > 0) {
             // 取最多前 5 张
             const autoRefImages: ReferenceImage[] = successTasks
-              .slice(0, 5)
+              .slice(0, 3)
               .map((t, i) => ({
                 id: `auto-${t.id}`,
                 file: new File([], `previous-${i + 1}.png`, {
@@ -837,7 +837,7 @@ export const useAppStore = create<AppState>()(
             referenceImages: [
               ...state.draft.referenceImages,
               { id, file, preview },
-            ].slice(0, 5),
+            ].slice(0, 3),
           },
         }));
       },

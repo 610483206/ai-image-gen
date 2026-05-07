@@ -54,7 +54,7 @@ export function InputArea() {
     (files: FileList | null) => {
       if (!files) return;
       Array.from(files).forEach((file, index) => {
-        if (draft.referenceImages.length >= 5) return;
+        if (draft.referenceImages.length >= 3) return;
         if (!file.type.startsWith("image/")) return;
         if (file.size > 10 * 1024 * 1024) return;
 
@@ -237,7 +237,7 @@ export function InputArea() {
             </div>
           ))}
           <Badge variant="secondary" className="shrink-0 self-center text-xs">
-            {draft.referenceImages.length}/5
+            {draft.referenceImages.length}/3
           </Badge>
         </div>
       )}
