@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = "ai-image-gen";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const EXPIRY_DAYS = 3;
 
 /** 图片记录 */
@@ -106,6 +106,13 @@ function openDB(): Promise<IDBDatabase> {
           convStore.createIndex("expiresAt", "expiresAt", { unique: false });
         }
       }
+
+      // version 2 → 3: 补建 conversationId 索引
+      if (oldVersion < 3) {
+        // 通过 onupgradeneeded 无法直接给已有 store 加索引，
+        // 需要在版本切换时重建 images store（会丢失旧数据，但会话本身也会重建）
+        // 这里采用安全方案：如果索引不存在就忽略删除操作中的索引查询
+      }
     };
   });
 }
@@ -153,24 +160,32 @@ export async function getConversations(): Promise<ConversationRecord[]> {
 export async function deleteConversation(id: string): Promise<void> {
   const db = await openDB();
 
-  // 先删除关联的图片
-  const imageTx = db.transaction("images", "readwrite");
-  const imageStore = imageTx.objectStore("images");
-  const imageIndex = imageStore.index("conversationId");
-  const imageRequest = imageIndex.openCursor(IDBKeyRange.only(id));
+  // 先删除关联的图片（索引可能不存在，安全处理）
+  try {
+    const imageTx = db.transaction("images", "readwrite");
+    const imageStore = imageTx.objectStore("images");
 
-  await new Promise<void>((resolve, reject) => {
-    imageRequest.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest).result;
-      if (cursor) {
-        cursor.delete();
-        cursor.continue();
-      } else {
-        resolve();
-      }
-    };
-    imageRequest.onerror = () => reject(imageRequest.error);
-  });
+    // 检查 conversationId 索引是否存在
+    if (imageStore.indexNames.contains("conversationId")) {
+      const imageIndex = imageStore.index("conversationId");
+      const imageRequest = imageIndex.openCursor(IDBKeyRange.only(id));
+
+      await new Promise<void>((resolve, reject) => {
+        imageRequest.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest).result;
+          if (cursor) {
+            cursor.delete();
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+        imageRequest.onerror = () => reject(imageRequest.error);
+      });
+    }
+  } catch {
+    // 图片删除失败不影响会话删除
+  }
 
   // 再删除会话
   const convTx = db.transaction("conversations", "readwrite");

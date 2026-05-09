@@ -439,7 +439,9 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      deleteConversation: (id) => {
+      deleteConversation: async (id) => {
+        // 先从 IndexedDB 删除，确保持久化删除完成
+        await dbDeleteConversation(id);
         set((state) => {
           const remaining = state.conversations.filter((c) => c.id !== id);
           const newCurrentId =
@@ -451,7 +453,6 @@ export const useAppStore = create<AppState>()(
             currentConversationId: newCurrentId,
           };
         });
-        dbDeleteConversation(id);
       },
 
       loadConversations: async () => {
