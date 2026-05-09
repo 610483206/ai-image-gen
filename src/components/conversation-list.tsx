@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useTheme } from "next-themes";
 import { useAppStore } from "@/store/use-app-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,8 @@ import {
   Pencil,
   Check,
   X,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { isToday, isYesterday } from "date-fns";
 
@@ -28,7 +31,7 @@ function getTimeGroup(timestamp: number): TimeGroup {
   return "更早";
 }
 
-export function ConversationList() {
+export function ConversationList({ collapsed = false }: { collapsed?: boolean }) {
   const {
     conversations,
     currentConversationId,
@@ -38,6 +41,10 @@ export function ConversationList() {
     deleteConversation,
     setSettingsOpen,
   } = useAppStore();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -88,10 +95,48 @@ export function ConversationList() {
 
   const hasConversations = conversations.length > 0;
 
+  // 收起模式 - 只显示图标
+  if (collapsed) {
+    return (
+      <div className="w-[52px] shrink-0 border-r border-border/50 bg-card flex flex-col items-center h-screen py-3 gap-3">
+        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+          <Sparkles className="h-3.5 w-3.5 text-white" />
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={newConversation}
+          title="新建会话"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          title="切换主题"
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setSettingsOpen(true)}
+          title="设置"
+        >
+          <Settings className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-[260px] shrink-0 border-r bg-card flex flex-col h-screen">
+    <div className="w-[260px] shrink-0 border-r border-border/50 bg-card flex flex-col h-screen">
       {/* 顶部 Logo + 按钮 */}
-      <div className="p-3 border-b space-y-3">
+      <div className="p-3 border-b border-border/50 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
@@ -100,6 +145,15 @@ export function ConversationList() {
             <span className="font-semibold text-sm">AI 绘画</span>
           </div>
           <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              title="切换主题"
+            >
+              {mounted && (theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />)}
+            </Button>
             <Button
               variant="ghost"
               size="icon"

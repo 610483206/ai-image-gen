@@ -41,28 +41,27 @@ export function SettingsDialog() {
   );
   const [testMessage, setTestMessage] = useState("");
 
-  /** 测试连接 */
+  /** 测试连接 - 通过后端代理避免 CORS */
   const handleTestConnection = async () => {
     setTesting(true);
     setTestResult(null);
     setTestMessage("");
 
     try {
-      const res = await fetch(`${baseURL}/models`, {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
+      const res = await fetch("/api/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseURL, apiKey }),
       });
 
-      if (res.ok) {
+      const data = await res.json();
+
+      if (data.success) {
         setTestResult("success");
         setTestMessage("连接成功！");
       } else {
-        const data = await res.json().catch(() => null);
         setTestResult("error");
-        setTestMessage(
-          data?.error?.message || `HTTP ${res.status}: 连接失败`
-        );
+        setTestMessage(data.error || "连接失败");
       }
     } catch (err) {
       setTestResult("error");

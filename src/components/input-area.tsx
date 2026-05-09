@@ -195,7 +195,7 @@ export function InputArea() {
   return (
     <div
       ref={dropZoneRef}
-      className={`border-t bg-card shrink-0 transition-colors ${
+      className={`border-t border-border/50 bg-card shrink-0 transition-colors ${
         isDragging ? "bg-primary/5 border-primary" : ""
       }`}
       onDragEnter={handleDragEnter}
@@ -330,7 +330,7 @@ export function InputArea() {
             <select
               value={draft.selectedRatio}
               onChange={(e) => setDraftRatio(e.target.value)}
-              className="h-8 pl-7 pr-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-8 pl-7 pr-3 rounded-full border border-border/50 bg-muted/50 text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
             >
               {ASPECT_RATIO_PRESETS.map((preset) => (
                 <option key={preset.value} value={preset.value}>
@@ -350,7 +350,7 @@ export function InputArea() {
               value={draft.customRatio}
               onChange={(e) => setDraftCustomRatio(e.target.value)}
               placeholder="宽:高"
-              className="h-8 w-20 text-xs rounded-full"
+              className="h-8 w-20 text-xs rounded-full bg-muted/50 border-border/50"
             />
           )}
 
@@ -358,7 +358,7 @@ export function InputArea() {
             <select
               value={draft.quality}
               onChange={(e) => setDraftQuality(e.target.value as "low" | "medium" | "high" | "auto")}
-              className="h-8 pl-7 pr-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-8 pl-7 pr-3 rounded-full border border-border/50 bg-muted/50 text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
             >
               {QUALITY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -376,7 +376,7 @@ export function InputArea() {
             <select
               value={draft.concurrency}
               onChange={(e) => setDraftConcurrency(Number(e.target.value))}
-              className="h-8 pl-7 pr-3 rounded-full border border-input bg-background text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-8 pl-7 pr-3 rounded-full border border-border/50 bg-muted/50 text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
             >
               {Array.from({ length: 3 }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>

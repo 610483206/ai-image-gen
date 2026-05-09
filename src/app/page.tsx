@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import { useAppStore } from "@/store/use-app-store";
 import { ConversationList } from "@/components/conversation-list";
 import { RightPanel } from "@/components/right-panel";
@@ -14,16 +15,19 @@ import {
   DrawerContent,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { Menu, Sparkles } from "lucide-react";
+import { Menu, Sparkles, PanelLeftClose, PanelLeft, Sun, Moon } from "lucide-react";
 
 export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const { loadConversations } = useAppStore();
 
-  // 注册全局键盘快捷键
+  useEffect(() => setMounted(true), []);
+
   useKeyboardShortcuts();
 
-  // 应用启动时：执行迁移 + 加载会话
   useEffect(() => {
     const init = async () => {
       await migrateV1ToV2();
@@ -35,12 +39,23 @@ export default function Home() {
   return (
     <main className="flex min-h-screen bg-background">
       {/* 桌面端左侧会话列表 */}
-      <div className="hidden lg:block">
-        <ConversationList />
+      <div className="hidden lg:block relative">
+        <ConversationList collapsed={sidebarCollapsed} />
+        {/* 收起/展开按钮 */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="absolute -right-3 top-20 z-10 w-6 h-6 rounded-full bg-card border border-border/50 shadow-md flex items-center justify-center hover:bg-accent transition-colors"
+        >
+          {sidebarCollapsed ? (
+            <PanelLeft className="h-3 w-3 text-muted-foreground" />
+          ) : (
+            <PanelLeftClose className="h-3 w-3 text-muted-foreground" />
+          )}
+        </button>
       </div>
 
       {/* 移动端抽屉 */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b border-border/50">
         <div className="flex items-center justify-between p-3">
           <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
             <DrawerTrigger asChild>
@@ -50,7 +65,7 @@ export default function Home() {
             </DrawerTrigger>
             <DrawerContent className="h-[85vh]">
               <div className="overflow-y-auto h-full">
-                <ConversationList />
+                <ConversationList collapsed={false} />
               </div>
             </DrawerContent>
           </Drawer>
@@ -62,7 +77,14 @@ export default function Home() {
             <span className="font-semibold">AI 绘画</span>
           </div>
 
-          <div className="w-10" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {mounted && (theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />)}
+          </Button>
         </div>
       </div>
 

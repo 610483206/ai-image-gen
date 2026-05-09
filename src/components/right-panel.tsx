@@ -9,12 +9,13 @@ import {
   Copy,
   RotateCcw,
   Trash2,
-  Sparkles,
   Loader2,
   AlertCircle,
   Clock,
   ZoomIn,
   Timer,
+  X,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,6 +33,8 @@ export function RightPanel() {
     removeMessage,
   } = useAppStore();
 
+  const [bannerVisible, setBannerVisible] = useState(true);
+
   const currentConversation = conversations.find(
     (c) => c.id === currentConversationId
   );
@@ -39,11 +42,21 @@ export function RightPanel() {
 
   return (
     <div className="flex-1 flex flex-col h-screen overflow-hidden">
-      {/* 顶部提示条 */}
-      <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-800 flex items-center gap-2 shrink-0">
-        <span>⚠️</span>
-        <span>生成的图片仅保存在当前浏览器中，保留 3 天后自动清理。切换浏览器或清除浏览器数据会导致历史记录丢失，请及时下载保存重要图片。</span>
-      </div>
+      {/* 顶部提示条 - 可关闭 */}
+      {bannerVisible && (
+        <div className="bg-muted/60 backdrop-blur-sm border-b border-border/50 px-4 py-2.5 text-sm text-muted-foreground flex items-center gap-3 shrink-0">
+          <Info className="h-4 w-4 shrink-0 text-blue-400" />
+          <span className="flex-1 leading-relaxed">
+            生成的图片仅保存在当前浏览器中，保留 3 天后自动清理。请及时下载保存重要图片。
+          </span>
+          <button
+            onClick={() => setBannerVisible(false)}
+            className="shrink-0 p-1 rounded-md hover:bg-muted transition-colors"
+          >
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+      )}
 
       {/* 对话流 */}
       <div className="flex-1 overflow-y-auto p-6">
@@ -76,7 +89,7 @@ export function RightPanel() {
   );
 }
 
-/** 空状态组件 */
+/** 空状态组件 - 悬挂照片风格 */
 function EmptyState() {
   const { setDraftPrompt } = useAppStore();
 
@@ -86,22 +99,102 @@ function EmptyState() {
     "水彩风格的中国山水画",
   ];
 
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-center">
-      <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
-        <Sparkles className="h-10 w-10 text-muted-foreground" />
-      </div>
-      <h3 className="text-xl font-semibold mb-2">准备开始创作</h3>
-      <p className="text-muted-foreground max-w-md mb-8">
-        输入描述你想要的图片，AI 将根据你的描述生成独特的视觉作品
-      </p>
+  const photos = [
+    {
+      src: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=280&h=360&fit=crop&auto=format",
+      alt: "彩色颜料飞溅",
+    },
+    {
+      src: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=280&h=360&fit=crop&auto=format",
+      alt: "人物特写肖像",
+    },
+    {
+      src: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=280&h=360&fit=crop&auto=format",
+      alt: "山间云海风景",
+    },
+    {
+      src: "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=280&h=360&fit=crop&auto=format",
+      alt: "艺术油画",
+    },
+    {
+      src: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=280&h=360&fit=crop&auto=format",
+      alt: "霓虹灯光艺术",
+    },
+  ];
 
-      <div className="flex flex-wrap gap-2 justify-center">
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center px-4">
+      {/* 悬挂照片区域 */}
+      <div className="relative mb-10 w-full max-w-3xl">
+        {/* SVG 半圆弧形绳索 + 照片挂绳 */}
+        <svg
+          className="absolute top-0 left-0 w-full"
+          style={{ height: "110px" }}
+          viewBox="0 0 800 110"
+          preserveAspectRatio="xMidYMin meet"
+        >
+          {/* 半圆弧形主绳 - 明显下垂的弧线 */}
+          <path
+            d="M 40 6 Q 400 140 760 6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            className="text-muted-foreground/20"
+          />
+          {/* 左固定钉 */}
+          <circle cx="40" cy="6" r="3.5" className="fill-muted-foreground/30" />
+          {/* 右固定钉 */}
+          <circle cx="760" cy="6" r="3.5" className="fill-muted-foreground/30" />
+          {/* 5根挂绳 - 从弧线对应位置下垂 */}
+          <path d="M 136 28 L 136 62" fill="none" stroke="currentColor" strokeWidth="1" className="text-muted-foreground/18" />
+          <path d="M 268 48 L 268 82" fill="none" stroke="currentColor" strokeWidth="1" className="text-muted-foreground/18" />
+          <path d="M 400 58 L 400 92" fill="none" stroke="currentColor" strokeWidth="1" className="text-muted-foreground/18" />
+          <path d="M 532 48 L 532 82" fill="none" stroke="currentColor" strokeWidth="1" className="text-muted-foreground/18" />
+          <path d="M 664 28 L 664 62" fill="none" stroke="currentColor" strokeWidth="1" className="text-muted-foreground/18" />
+        </svg>
+
+        {/* 照片卡片 - 跟随弧线高低排列 */}
+        <div className="flex justify-center items-end gap-5" style={{ paddingTop: "96px" }}>
+          {photos.map((photo, i) => {
+            // 外低内高，跟随弧线
+            const offsets = [0, 20, 30, 20, 0];
+            return (
+              <div
+                key={i}
+                className="hanging-photo flex flex-col items-center"
+                style={{ marginTop: `${offsets[i]}px` }}
+              >
+                <div className="relative w-[120px] h-[152px] rounded-lg border border-white/[0.1] shadow-xl shadow-black/30 overflow-hidden bg-muted/20">
+                  <img
+                    src={photo.src}
+                    alt={photo.alt}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/[0.06] to-transparent pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/25 to-transparent pointer-events-none" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 文案 */}
+      <div className="space-y-3 mb-8">
+        <h3 className="text-2xl font-bold tracking-tight">准备开始创作</h3>
+        <p className="text-muted-foreground text-sm max-w-sm leading-relaxed">
+          输入描述你想要的图片，AI 将根据你的描述生成独特的视觉作品
+        </p>
+      </div>
+
+      {/* 示例提示词 */}
+      <div className="flex flex-wrap gap-2.5 justify-center">
         {examples.map((example) => (
           <button
             key={example}
             onClick={() => setDraftPrompt(example)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-muted hover:bg-muted/80 transition-colors text-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/30 hover:bg-accent/60 border border-white/[0.06] transition-all duration-200 text-sm text-muted-foreground hover:text-foreground"
           >
             {example}
           </button>
@@ -171,7 +264,7 @@ function UserMessageBubble({
             </div>
           )}
           {/* 消息内容 */}
-          <div className="bg-blue-50 text-blue-900 rounded-2xl rounded-tr-md px-4 py-3">
+          <div className="bg-primary/10 text-foreground rounded-2xl rounded-tr-md px-4 py-3">
             <p className="text-sm whitespace-pre-wrap">{message.prompt}</p>
           </div>
         </div>
