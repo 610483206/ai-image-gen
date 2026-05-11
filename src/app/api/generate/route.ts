@@ -23,43 +23,15 @@ function decodeBase64(base64Data: string): Uint8Array {
   return bytes;
 }
 
-/** 构造 multipart body */
-function buildMultipart(fieldName: string, fileName: string, fileBytes: Uint8Array, extraFields?: Record<string, string>): { body: Uint8Array; boundary: string } {
-  const boundary = "----Boundary" + Math.random().toString(36).slice(2);
-  const parts: Uint8Array[] = [];
-  const encoder = new TextEncoder();
-
-  // 额外字段
-  if (extraFields) {
-    for (const [key, val] of Object.entries(extraFields)) {
-      parts.push(encoder.encode(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${val}\r\n`));
-    }
-  }
-
-  // 文件字段
-  parts.push(encoder.encode(`--${boundary}\r\nContent-Disposition: form-data; name="${fieldName}"; filename="${fileName}"\r\nContent-Type: image/jpeg\r\n\r\n`));
-  parts.push(fileBytes);
-  parts.push(encoder.encode(`\r\n--${boundary}--\r\n`));
-
-  const totalLen = parts.reduce((sum, p) => sum + p.length, 0);
-  const body = new Uint8Array(totalLen);
-  let offset = 0;
-  for (const part of parts) {
-    body.set(part, offset);
-    offset += part.length;
-  }
-  return { body, boundary };
-}
-
 /** 将 base64 图片上传到公网，返回可访问 URL */
 async function uploadImageToPublicUrl(base64Data: string): Promise<string> {
   const bytes = decodeBase64(base64Data);
-  const { body, boundary } = buildMultipart("file", "image.jpg", bytes);
+  const formData = new FormData();
+  formData.append("file", new Blob([bytes], { type: "image/jpeg" }), "image.jpg");
 
   const res = await fetch("https://tmpfiles.org/api/v1/upload", {
     method: "POST",
-    headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
-    body: body.buffer.slice(0),
+    body: formData,
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`上传失败: HTTP ${res.status}`);
