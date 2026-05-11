@@ -59,7 +59,7 @@ async function uploadImageToPublicUrl(base64Data: string): Promise<string> {
   const res = await fetch("https://tmpfiles.org/api/v1/upload", {
     method: "POST",
     headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
-    body: body.buffer,
+    body: new Blob([body]),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`上传失败: HTTP ${res.status}`);
