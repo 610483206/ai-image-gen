@@ -167,9 +167,11 @@ export async function POST(request: NextRequest) {
           sendEvent({ type: "progress", message: "检测到异步任务，开始轮询结果..." });
 
           const apiOrigin = useFullUrl ? extractOrigin(rawBaseURL) : baseURL;
-          sendEvent({ type: "progress", message: `轮询地址: ${apiOrigin}/v1/media/status?task_id=${taskId}` });
-          const maxPolls = 120;
-          const pollInterval = 3000;
+          // Cloudflare Workers 限制单次调用最多 50 次子请求
+          // 预留 2 个给创建任务和下载图片，剩余 48 次用于轮询
+          // 5 秒间隔 × 48 次 = 240 秒（4 分钟），足够图片生成
+          const maxPolls = 48;
+          const pollInterval = 5000;
 
           for (let i = 0; i < maxPolls; i++) {
             await new Promise((r) => setTimeout(r, pollInterval));
@@ -218,7 +220,7 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          sendEvent({ type: "error", error: "任务超时，请重试" });
+          sendEvent({ type: "error", error: "任务超时，请稍后重试", taskId: String(taskId) });
           return;
         }
 

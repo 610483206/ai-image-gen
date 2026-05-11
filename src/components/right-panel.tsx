@@ -29,6 +29,7 @@ export function RightPanel() {
     conversations,
     currentConversationId,
     regenerateSingleImage,
+    recheckTask,
     cancelGeneration,
     removeMessage,
   } = useAppStore();
@@ -76,6 +77,9 @@ export function RightPanel() {
                   message={message as { role: "assistant"; id: string; tasks: GenerateTask[]; params: { size: string; quality: string; concurrency: number; riskGuard: boolean }; durationMs?: number }}
                   onRegenerateSingle={(taskIndex) =>
                     regenerateSingleImage(message.id, taskIndex)
+                  }
+                  onRecheckSingle={(taskIndex) =>
+                    recheckTask(message.id, taskIndex)
                   }
                   onCancel={cancelGeneration}
                   onRemove={() => removeMessage(message.id)}
@@ -286,6 +290,7 @@ function UserMessageBubble({
 function AssistantMessageBubble({
   message,
   onRegenerateSingle,
+  onRecheckSingle,
   onCancel,
   onRemove,
 }: {
@@ -297,6 +302,7 @@ function AssistantMessageBubble({
     durationMs?: number;
   };
   onRegenerateSingle: (taskIndex: number) => void;
+  onRecheckSingle: (taskIndex: number) => void;
   onCancel: () => void;
   onRemove: () => void;
 }) {
@@ -329,6 +335,7 @@ function AssistantMessageBubble({
                 key={task.id}
                 task={task}
                 onRegenerate={() => onRegenerateSingle(index)}
+                onRecheck={() => onRecheckSingle(index)}
                 onView={(src) => setLightboxSrc(src)}
               />
             ))}
@@ -394,10 +401,12 @@ function AssistantMessageBubble({
 function TaskImage({
   task,
   onRegenerate,
+  onRecheck,
   onView,
 }: {
   task: GenerateTask;
   onRegenerate: () => void;
+  onRecheck: () => void;
   onView: (src: string) => void;
 }) {
   const setImageAsReference = useAppStore((s) => s.setImageAsReference);
@@ -544,10 +553,18 @@ function TaskImage({
           <span className="text-xs text-destructive text-center line-clamp-2">
             {task.error || "生成失败"}
           </span>
-          <Button size="sm" variant="outline" onClick={onRegenerate}>
-            <RotateCcw className="h-3 w-3 mr-1" />
-            重试
-          </Button>
+          <div className="flex gap-2">
+            {task.taskId && (
+              <Button size="sm" variant="outline" onClick={onRecheck}>
+                <RotateCcw className="h-3 w-3 mr-1" />
+                重新检查
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={onRegenerate}>
+              <RotateCcw className="h-3 w-3 mr-1" />
+              重试
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center bg-muted gap-2">

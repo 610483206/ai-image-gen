@@ -90,6 +90,7 @@ export interface GenerateTask {
   imageBase64?: string;
   revisedPrompt?: string;
   error?: string;
+  taskId?: string; // 上游 API 的任务 ID，用于超时后重新检查
   createdAt: number;
   startedAt?: number;
   completedAt?: number;
@@ -203,7 +204,7 @@ async function streamGenerate(
     useFullUrl?: boolean;
   },
   signal?: AbortSignal
-): Promise<{ success: boolean; imageBase64?: string; revisedPrompt?: string; error?: string }> {
+): Promise<{ success: boolean; imageBase64?: string; revisedPrompt?: string; error?: string; taskId?: string }> {
   const response = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -244,7 +245,7 @@ async function streamGenerate(
               revisedPrompt: data.revisedPrompt,
             };
           } else if (data.type === "error") {
-            return { success: false, error: data.error };
+            return { success: false, error: data.error, taskId: data.taskId };
           }
           // heartbeat 和 progress 事件忽略，继续读取
         } catch {
@@ -338,6 +339,7 @@ interface AppState {
   ) => Promise<void>;
   cancelGeneration: () => void;
   removeMessage: (messageId: string) => void;
+  recheckTask: (assistantMessageId: string, taskIndex: number) => Promise<void>;
 
   // ===== 设置弹窗 =====
   settingsOpen: boolean;
@@ -531,6 +533,7 @@ export const useAppStore = create<AppState>()(
                 imageBase64: t.imageBase64,
                 revisedPrompt: t.revisedPrompt,
                 error: t.error,
+                taskId: t.taskId,
                 createdAt: t.createdAt,
                 startedAt: t.startedAt,
                 completedAt: t.completedAt,
@@ -798,6 +801,12 @@ export const useAppStore = create<AppState>()(
                   completedAt: Date.now(),
                 });
               } else {
+                // 保存 taskId 以便后续重新检查
+                if (result.taskId) {
+                  updateTaskStatus(task.id, {
+                    taskId: result.taskId,
+                  });
+                }
                 throw new Error(result.error || "生成失败");
               }
             }
@@ -1285,6 +1294,146 @@ export const useAppStore = create<AppState>()(
         }));
       },
 
+      recheckTask: async (assistantMessageId, taskIndex) => {
+        const state = get();
+        const conv = getCurrentConversation(state);
+        if (!conv) return;
+
+        const assistantMsg = conv.messages.find(
+          (m) => m.id === assistantMessageId && m.role === "assistant"
+        ) as (Message & { role: "assistant" }) | undefined;
+        if (!assistantMsg) return;
+
+        const task = assistantMsg.tasks[taskIndex];
+        if (!task?.taskId) return;
+
+        // 更新任务状态为 running
+        set((s) => ({
+          conversations: s.conversations.map((c) =>
+            c.id === conv.id
+              ? {
+                  ...c,
+                  messages: c.messages.map((m) =>
+                    m.id === assistantMessageId && m.role === "assistant"
+                      ? {
+                          ...m,
+                          tasks: (
+                            m as Message & { role: "assistant" }
+                          ).tasks.map((t: GenerateTask, i: number) =>
+                            i === taskIndex
+                              ? { ...t, status: "running" as TaskStatus, error: undefined, startedAt: Date.now() }
+                              : t
+                          ),
+                        }
+                      : m
+                  ),
+                }
+              : c
+          ),
+        }));
+
+        try {
+          const res = await fetch("/api/check-task", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              baseURL: state.apiConfig.baseURL,
+              apiKey: getDecodedApiKey(),
+              taskId: task.taskId,
+              useFullUrl: state.apiConfig.useFullUrl,
+            }),
+          });
+
+          const data = await res.json();
+
+          if (data.success) {
+            set((s) => ({
+              conversations: s.conversations.map((c) =>
+                c.id === conv.id
+                  ? {
+                      ...c,
+                      messages: c.messages.map((m) =>
+                        m.id === assistantMessageId && m.role === "assistant"
+                          ? {
+                              ...m,
+                              tasks: (
+                                m as Message & { role: "assistant" }
+                              ).tasks.map((t: GenerateTask, i: number) =>
+                                i === taskIndex
+                                  ? {
+                                      ...t,
+                                      status: "success" as TaskStatus,
+                                      imageBase64: data.imageBase64,
+                                      error: undefined,
+                                      completedAt: Date.now(),
+                                    }
+                                  : t
+                              ),
+                            }
+                          : m
+                      ),
+                    }
+                  : c
+              ),
+            }));
+          } else {
+            set((s) => ({
+              conversations: s.conversations.map((c) =>
+                c.id === conv.id
+                  ? {
+                      ...c,
+                      messages: c.messages.map((m) =>
+                        m.id === assistantMessageId && m.role === "assistant"
+                          ? {
+                              ...m,
+                              tasks: (
+                                m as Message & { role: "assistant" }
+                              ).tasks.map((t: GenerateTask, i: number) =>
+                                i === taskIndex
+                                  ? { ...t, status: "failed" as TaskStatus, error: data.error, completedAt: Date.now() }
+                                  : t
+                              ),
+                            }
+                          : m
+                      ),
+                    }
+                  : c
+              ),
+            }));
+          }
+        } catch {
+          set((s) => ({
+            conversations: s.conversations.map((c) =>
+              c.id === conv.id
+                ? {
+                    ...c,
+                    messages: c.messages.map((m) =>
+                      m.id === assistantMessageId && m.role === "assistant"
+                        ? {
+                            ...m,
+                            tasks: (
+                              m as Message & { role: "assistant" }
+                            ).tasks.map((t: GenerateTask, i: number) =>
+                              i === taskIndex
+                                ? { ...t, status: "failed" as TaskStatus, error: "重新检查失败", completedAt: Date.now() }
+                                : t
+                            ),
+                          }
+                        : m
+                    ),
+                  }
+                : c
+            ),
+          }));
+        }
+
+        // 保存会话
+        const updatedConv = get().conversations.find((c) => c.id === conv.id);
+        if (updatedConv) {
+          await saveConversationToDB(updatedConv);
+        }
+      },
+
       // ===== 设置弹窗 =====
       settingsOpen: false,
       setSettingsOpen: (open) => set({ settingsOpen: open }),
@@ -1342,6 +1491,7 @@ async function saveConversationToDB(conversation: Conversation): Promise<void> {
           imageBase64: t.imageBase64,
           revisedPrompt: t.revisedPrompt,
           error: t.error,
+          taskId: t.taskId,
           createdAt: t.createdAt,
           startedAt: t.startedAt,
           completedAt: t.completedAt,

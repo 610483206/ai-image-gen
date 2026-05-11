@@ -58,6 +58,7 @@ export type MessageRecord =
         imageBase64?: string;
         revisedPrompt?: string;
         error?: string;
+        taskId?: string;
         createdAt: number;
         startedAt?: number;
         completedAt?: number;
