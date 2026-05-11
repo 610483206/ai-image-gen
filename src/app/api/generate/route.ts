@@ -26,8 +26,10 @@ function decodeBase64(base64Data: string): Uint8Array {
 /** 将 base64 图片上传到公网，返回可访问 URL */
 async function uploadImageToPublicUrl(base64Data: string): Promise<string> {
   const bytes = decodeBase64(base64Data);
+  // 显式转为 ArrayBuffer，避免 TypeScript 类型兼容问题
+  const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
   const formData = new FormData();
-  formData.append("file", new Blob([bytes], { type: "image/jpeg" }), "image.jpg");
+  formData.append("file", new Blob([arrayBuffer], { type: "image/jpeg" }), "image.jpg");
 
   const res = await fetch("https://tmpfiles.org/api/v1/upload", {
     method: "POST",
