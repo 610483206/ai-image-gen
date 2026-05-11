@@ -167,6 +167,7 @@ export async function POST(request: NextRequest) {
           sendEvent({ type: "progress", message: "检测到异步任务，开始轮询结果..." });
 
           const apiOrigin = useFullUrl ? extractOrigin(rawBaseURL) : baseURL;
+          sendEvent({ type: "progress", message: `轮询地址: ${apiOrigin}/v1/media/status?task_id=${taskId}` });
           const maxPolls = 120;
           const pollInterval = 3000;
 
@@ -211,8 +212,9 @@ export async function POST(request: NextRequest) {
               const apiProgress = statusData.progress && statusData.progress !== "0" && statusData.progress !== "0%" ? statusData.progress : null;
               const displayProgress = apiProgress || `${Math.round(((i + 1) / maxPolls) * 100)}%`;
               sendEvent({ type: "progress", message: `生成中... ${displayProgress}` });
-            } catch {
-              sendEvent({ type: "progress", message: "轮询异常，重试中..." });
+            } catch (pollErr) {
+              const pollErrMsg = pollErr instanceof Error ? pollErr.message : String(pollErr);
+              sendEvent({ type: "progress", message: `轮询异常: ${pollErrMsg}` });
             }
           }
 
