@@ -16,6 +16,8 @@ interface ApiConfig {
   baseURL: string;
   apiKey: string;
   modelId: string;
+  /** 使用完整 URL 模式：开启后 baseURL 直接作为请求地址，不再拼接路径 */
+  useFullUrl: boolean;
 }
 
 /** 画质等级 */
@@ -163,6 +165,31 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** 压缩参考图：缩放到最大 1024px，JPEG 质量 0.8 */
+async function compressReferenceImage(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1024;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        const scale = MAX / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.8));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 /** 通过 SSE 流式调用生图 API */
 async function streamGenerate(
   params: {
@@ -173,6 +200,7 @@ async function streamGenerate(
     size: string;
     quality: string;
     referenceImages?: { data: string; name: string; type: string }[];
+    useFullUrl?: boolean;
   },
   signal?: AbortSignal
 ): Promise<{ success: boolean; imageBase64?: string; revisedPrompt?: string; error?: string }> {
@@ -344,11 +372,12 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       // ===== 配置默认值 =====
       apiConfig: {
-        baseURL: "https://www.packyapi.com/v1",
+        baseURL: "https://api.ai6800.com/v1/media/generate",
         apiKey: encodeApiKey(
-          "sk-NxGQfgLXuWfImEsZAKE94NKVQwVrrrNs2PTYoilARiP8CYNs"
+          "sk-a9f67b7c5837e480bc09e1b52d0b651bfe112e6a02c8d30b"
         ),
         modelId: "gpt-image-2",
+        useFullUrl: true,
       },
       setApiConfig: (config) =>
         set((state) => ({
@@ -715,12 +744,14 @@ export const useAppStore = create<AppState>()(
           });
 
           try {
-            // 准备参考图数据
-            const refImagesData = finalRefImages.map((img) => ({
-              data: img.preview,
-              name: img.file?.name || "image.png",
-              type: img.file?.type || "image/png",
-            }));
+            // 准备参考图数据（压缩以减小请求体）
+            const compressedImages = await Promise.all(
+              finalRefImages.map(async (img) => ({
+                data: await compressReferenceImage(img.preview),
+                name: img.file?.name || "image.png",
+                type: "image/jpeg",
+              }))
+            );
 
             // 通过 SSE 流式调用
             const result = await streamGenerate(
@@ -731,7 +762,8 @@ export const useAppStore = create<AppState>()(
                 prompt: finalPrompt,
                 size: userMessage.params.size,
                 quality: userMessage.params.quality,
-                referenceImages: refImagesData.length > 0 ? refImagesData : undefined,
+                referenceImages: compressedImages.length > 0 ? compressedImages : undefined,
+                useFullUrl: state.apiConfig.useFullUrl,
               },
               abortController.signal
             );
@@ -889,11 +921,13 @@ export const useAppStore = create<AppState>()(
         // 重新执行生成（复用 sendMessage 的逻辑，但不创建新消息）
         // 这里简化处理：直接调用 API 重新生成
         const refImages = userMsg.referenceImages;
-        const refImagesData = refImages.map((img) => ({
-          data: img.data,
-          name: img.name,
-          type: "image/png",
-        }));
+        const compressedRefImages = await Promise.all(
+          refImages.map(async (img) => ({
+            data: await compressReferenceImage(img.data),
+            name: img.name,
+            type: "image/jpeg",
+          }))
+        );
 
         const executeTask = async (task: GenerateTask, index: number) => {
           const abortController = new AbortController();
@@ -936,7 +970,8 @@ export const useAppStore = create<AppState>()(
                 prompt: userMsg.prompt,
                 size: userMsg.params.size,
                 quality: userMsg.params.quality,
-                referenceImages: refImagesData.length > 0 ? refImagesData : undefined,
+                referenceImages: compressedRefImages.length > 0 ? compressedRefImages : undefined,
+                useFullUrl: state.apiConfig.useFullUrl,
               },
               abortController.signal
             );
@@ -1076,11 +1111,13 @@ export const useAppStore = create<AppState>()(
 
         // 执行单个任务重新生成
         const refImages = userMsg.referenceImages;
-        const refImagesData = refImages.map((img) => ({
-          data: img.data,
-          name: img.name,
-          type: "image/png",
-        }));
+        const compressedRefImages = await Promise.all(
+          refImages.map(async (img) => ({
+            data: await compressReferenceImage(img.data),
+            name: img.name,
+            type: "image/jpeg",
+          }))
+        );
 
         set((s) => ({
           conversations: s.conversations.map((c) =>
@@ -1118,7 +1155,8 @@ export const useAppStore = create<AppState>()(
               prompt: userMsg.prompt,
               size: userMsg.params.size,
               quality: userMsg.params.quality,
-              referenceImages: refImagesData.length > 0 ? refImagesData : undefined,
+              referenceImages: compressedRefImages.length > 0 ? compressedRefImages : undefined,
+              useFullUrl: state.apiConfig.useFullUrl,
             },
             abortController.signal
           );
@@ -1261,6 +1299,8 @@ export const useAppStore = create<AppState>()(
         apiConfig: {
           baseURL: state.apiConfig.baseURL,
           apiKey: state.apiConfig.apiKey,
+          modelId: state.apiConfig.modelId,
+          useFullUrl: state.apiConfig.useFullUrl,
         },
       }),
     }

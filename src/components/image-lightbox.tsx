@@ -116,13 +116,13 @@ export function ImageLightbox({ src, alt, prompt, onClose }: ImageLightboxProps)
 
       {/* 图片 */}
       <div
-        className="max-w-[90vw] max-h-[90vh] overflow-auto"
+        className="max-w-[95vw] max-h-[95vh] overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <img
           src={imageSrc}
           alt={alt || "AI 生成图片"}
-          className="max-w-full max-h-[85vh] object-contain transition-transform duration-200"
+          className="max-w-full max-h-[92vh] object-contain transition-transform duration-200"
           style={{ transform: `scale(${scale})` }}
           draggable={false}
         />

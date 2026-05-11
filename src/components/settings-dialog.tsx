@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 /** 常用模型 ID 预设 */
 const MODEL_PRESETS = [
@@ -25,6 +26,7 @@ export function SettingsDialog() {
     useAppStore();
 
   const [baseURL, setBaseURL] = useState(apiConfig.baseURL);
+  const [useFullUrl, setUseFullUrl] = useState(apiConfig.useFullUrl ?? false);
   const [modelId, setModelId] = useState(apiConfig.modelId);
   // 解混淆显示
   const [apiKey, setApiKey] = useState(() => {
@@ -51,7 +53,7 @@ export function SettingsDialog() {
       const res = await fetch("/api/test-connection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseURL, apiKey }),
+        body: JSON.stringify({ baseURL, apiKey, useFullUrl }),
       });
 
       const data = await res.json();
@@ -77,6 +79,7 @@ export function SettingsDialog() {
       baseURL: baseURL.trim(),
       apiKey: apiKey.trim(),
       modelId: modelId.trim(),
+      useFullUrl,
     });
     setSettingsOpen(false);
   };
@@ -103,6 +106,21 @@ export function SettingsDialog() {
             />
             <p className="text-xs text-muted-foreground">
               支持 OpenAI 官方及任意兼容协议的中转地址
+            </p>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="useFullUrl"
+                checked={useFullUrl}
+                onCheckedChange={setUseFullUrl}
+              />
+              <Label htmlFor="useFullUrl" className="text-sm font-normal cursor-pointer">
+                完整 URL 模式
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {useFullUrl
+                ? "已开启：直接使用填写的完整 URL 作为请求地址"
+                : "关闭时自动在末尾拼接 /images/generations"}
             </p>
           </div>
 
