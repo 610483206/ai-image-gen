@@ -2,6 +2,10 @@ import { NextRequest } from "next/server";
 
 export const runtime = "edge";
 
+interface Env {
+  IMAGES_BUCKET: KVNamespace;
+}
+
 /** 从完整 URL 中提取 origin（域名+协议） */
 function extractOrigin(url: string): string {
   try {
@@ -23,26 +27,32 @@ function decodeBase64(base64Data: string): Uint8Array {
   return bytes;
 }
 
-/** 将 base64 图片上传到公网，返回可访问 URL */
-async function uploadImageToPublicUrl(base64Data: string): Promise<string> {
+/** 将 base64 图片存入 Cloudflare KV，返回公网 URL */
+async function uploadImageToKV(
+  base64Data: string,
+  kv: KVNamespace | undefined,
+  origin: string
+): Promise<string> {
   const bytes = decodeBase64(base64Data);
-  // 显式转为 ArrayBuffer，避免 TypeScript 类型兼容问题
+
+  // KV 可用时用 KV，否则回退到 tmpfiles.org（本地开发）
+  if (kv) {
+    const key = `img/${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (kv as any).put(key, arrayBuffer, { expirationTtl: 600 });
+    return `${origin}/api/image/${key}`;
+  }
+
+  // 回退：tmpfiles.org（本地开发用）
   const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
   const formData = new FormData();
   formData.append("file", new Blob([arrayBuffer], { type: "image/jpeg" }), "image.jpg");
-
-  const res = await fetch("https://tmpfiles.org/api/v1/upload", {
-    method: "POST",
-    body: formData,
-  });
+  const res = await fetch("https://tmpfiles.org/api/v1/upload", { method: "POST", body: formData });
   const text = await res.text();
   if (!res.ok) throw new Error(`上传失败: HTTP ${res.status}`);
-
   const result = JSON.parse(text);
-  if (result.status !== "success" || !result.data?.url) {
-    throw new Error(`上传返回异常: ${text.slice(0, 200)}`);
-  }
-  // 页面 URL → 直接下载 URL: http://tmpfiles.org/12345/file.png → http://tmpfiles.org/dl/12345/file.png
+  if (result.status !== "success" || !result.data?.url) throw new Error(`上传异常: ${text.slice(0, 200)}`);
   return result.data.url.replace("tmpfiles.org/", "tmpfiles.org/dl/");
 }
 
@@ -54,8 +64,9 @@ async function uploadImageToPublicUrl(base64Data: string): Promise<string> {
  * - OpenAI 标准：同步返回图片（/v1/images/generations）
  * - 异步任务模式：返回 task_id 后需轮询（/v1/media/generate）
  */
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, context?: { env?: Env }) {
   const body = await request.json();
+  const IMAGES_BUCKET = context?.env?.IMAGES_BUCKET;
 
   const {
     baseURL: rawBaseURL,
@@ -118,12 +129,13 @@ export async function POST(request: NextRequest) {
           sendEvent({ type: "progress", message: `正在上传 ${limitedImages.length} 张参考图...` });
 
           const imageUrls: string[] = [];
+          const requestOrigin = new URL(request.url).origin;
           for (let idx = 0; idx < limitedImages.length; idx++) {
             const img = limitedImages[idx] as { data: string; name: string; type: string };
             try {
-              const url = await uploadImageToPublicUrl(img.data);
+              const url = await uploadImageToKV(img.data, IMAGES_BUCKET, requestOrigin);
               imageUrls.push(url);
-              sendEvent({ type: "progress", message: `第 ${idx + 1} 张图上传成功: ${url}` });
+              sendEvent({ type: "progress", message: `第 ${idx + 1} 张图上传成功` });
             } catch (uploadErr) {
               const errMsg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
               sendEvent({ type: "progress", message: `第 ${idx + 1} 张图上传失败: ${errMsg}` });
