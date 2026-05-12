@@ -2,6 +2,8 @@
  * 从 Cloudflare KV 读取并返回图片
  */
 
+export const runtime = "edge";
+
 export async function GET(
   request: Request,
   context: { params: Promise<{ key: string }>; env: { IMAGES_BUCKET: KVNamespace } }
