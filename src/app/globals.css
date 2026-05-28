@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 12% 14%;
+    --foreground: 0 0% 93%;
+    --card: 222 12% 17%;
+    --card-foreground: 0 0% 93%;
+    --popover: 222 12% 17%;
+    --popover-foreground: 0 0% 93%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 222 12% 14%;
+    --secondary: 220 11% 21%;
+    --secondary-foreground: 0 0% 93%;
+    --muted: 220 11% 21%;
+    --muted-foreground: 220 9% 55%;
+    --accent: 220 11% 21%;
+    --accent-foreground: 0 0% 93%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 11% 24%;
+    --input: 220 11% 24%;
+    --ring: 224 76% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* 光影闪烁动画 */
+@keyframes shimmer {
+  0% {
+    opacity: 0.3;
+    transform: translateX(-100%) rotate(-5deg);
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0.3;
+    transform: translateX(100%) rotate(-5deg);
+  }
+}
+
+@keyframes shimmer-delay {
+  0% {
+    opacity: 0.2;
+    transform: translateX(100%) rotate(5deg);
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0.2;
+    transform: translateX(-100%) rotate(5deg);
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 3s ease-in-out infinite;
+  background-size: 200% 200%;
+}
+
+.animate-shimmer-delay {
+  animation: shimmer-delay 4s ease-in-out infinite;
+  animation-delay: 1s;
+  background-size: 200% 200%;
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
+}
+
+/* 悬挂照片动画 - 微弱摆动 */
+@keyframes photo-swing {
+  0%, 100% { transform: rotate(var(--swing-start, -1deg)); }
+  50% { transform: rotate(var(--swing-end, 1deg)); }
+}
+
+.hanging-photo {
+  animation: photo-swing 5s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+.hanging-photo:nth-child(1) { --swing-start: -1.2deg; --swing-end: 0.5deg; animation-delay: 0s; }
+.hanging-photo:nth-child(2) { --swing-start: 0.6deg; --swing-end: -0.8deg; animation-delay: 0.5s; }
+.hanging-photo:nth-child(3) { --swing-start: -0.4deg; --swing-end: 1deg; animation-delay: 1s; }
+.hanging-photo:nth-child(4) { --swing-start: 0.8deg; --swing-end: -0.5deg; animation-delay: 1.5s; }
+.hanging-photo:nth-child(5) { --swing-start: -0.8deg; --swing-end: 1.2deg; animation-delay: 2s; }
+
+/* 字体覆盖 */
+body {
+  font-family: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+}
