@@ -374,12 +374,12 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       // ===== 配置默认值 =====
       apiConfig: {
-        baseURL: "https://api.ai6800.com/v1/media/generate",
+        baseURL: "https://jiuuij.de5.net/v1",
         apiKey: encodeApiKey(
-          "sk-a9f67b7c5837e480bc09e1b52d0b651bfe112e6a02c8d30b"
+          "sk-IhOMs9dDvupJKRgB5KCmlsirbf6Yrs59vuH7OsKlHhR8c3ht"
         ),
         modelId: "gpt-image-2",
-        useFullUrl: true,
+        useFullUrl: false,
       },
       setApiConfig: (config) =>
         set((state) => ({
