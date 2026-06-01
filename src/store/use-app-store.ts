@@ -191,6 +191,56 @@ async function compressReferenceImage(dataUrl: string): Promise<string> {
   });
 }
 
+/**
+ * 请求桌面通知权限。
+ * 必须在用户手势上下文中调用（如点击"发送/生成"按钮），否则浏览器会忽略请求。
+ */
+function ensureNotificationPermission(): void {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission === "default") {
+    // 仅在未决定时请求一次；结果会写入 Notification.permission
+    void Notification.requestPermission();
+  }
+}
+
+/**
+ * 生成批次结束后弹出 Windows/桌面通知。
+ * 仅在页面不在前台（已切走或最小化）时通知，避免用户正盯着页面时被打扰。
+ */
+function notifyBatchDone(successCount: number, failCount: number): void {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  // 页面仍可见且处于焦点时不打扰，UI 上已能看到结果
+  if (document.visibilityState === "visible" && document.hasFocus()) return;
+
+  let title: string;
+  let body: string;
+  if (failCount === 0) {
+    title = "图片生成完成 ✨";
+    body = `${successCount} 张图片已生成完毕`;
+  } else if (successCount === 0) {
+    title = "图片生成失败";
+    body = `${failCount} 张图片生成失败，可点击重试`;
+  } else {
+    title = "图片生成结束";
+    body = `成功 ${successCount} 张，失败 ${failCount} 张`;
+  }
+
+  try {
+    const notification = new Notification(title, {
+      body,
+      icon: "/favicon.ico",
+      tag: "ai-image-gen", // 同 tag 会合并，避免堆叠多条
+    });
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+  } catch {
+    // 个别环境下 new Notification 需 Service Worker，失败则静默忽略
+  }
+}
+
 /** 通过 SSE 流式调用生图 API */
 async function streamGenerate(
   params: {
@@ -572,6 +622,9 @@ export const useAppStore = create<AppState>()(
 
         if (!draft.prompt.trim() && draft.referenceImages.length === 0) return;
 
+        // 在用户手势上下文中请求桌面通知权限（首次发送时弹一次）
+        ensureNotificationPermission();
+
         // 确保有当前会话
         let convId = currentConversationId;
         if (!convId) {
@@ -835,6 +888,22 @@ export const useAppStore = create<AppState>()(
         // 并发执行所有任务
         const promises = tasks.map((task) => executeTask(task));
         await Promise.allSettled(promises);
+
+        // 整批结束后弹桌面通知（仅在页面不在前台时）
+        const settledMsg = get()
+          .conversations.find((c) => c.id === convId)
+          ?.messages.find((m) => m.id === assistantMessage.id) as
+          | (Message & { role: "assistant" })
+          | undefined;
+        if (settledMsg) {
+          const successCount = settledMsg.tasks.filter(
+            (t) => t.status === "success"
+          ).length;
+          const failCount = settledMsg.tasks.filter(
+            (t) => t.status === "failed"
+          ).length;
+          notifyBatchDone(successCount, failCount);
+        }
 
         // 更新 assistant message 的 durationMs
         const durationMs = Date.now() - startTime;
