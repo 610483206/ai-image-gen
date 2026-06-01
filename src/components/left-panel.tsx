@@ -24,6 +24,11 @@ import {
   ZoomIn,
   Sun,
   Moon,
+  FileText,
+  Ratio,
+  Gem,
+  Layers3,
+  ShieldCheck,
 } from "lucide-react";
 import { useRef, useCallback, useState, useEffect } from "react";
 import { useTheme } from "next-themes";
@@ -130,20 +135,21 @@ export function LeftPanel() {
   }, [handlePaste]);
 
   return (
-    <div className="w-[320px] shrink-0 border-r bg-card flex flex-col h-screen overflow-y-auto">
+    <div className="studio-panel premium-scroll flex h-dvh w-[320px] shrink-0 flex-col overflow-y-auto border-y-0 border-l-0">
       {/* Logo + 标题 */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between border-b soft-divider p-4">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-            <Sparkles className="h-4 w-4 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+            <Sparkles className="h-5 w-5" />
           </div>
-          <h1 className="text-lg font-bold">AI 绘画</h1>
+          <h1 className="text-base font-semibold tracking-normal">AI 绘画工作台</h1>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+            aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
           >
             {theme === "dark" ? (
               <Sun className="h-4 w-4" />
@@ -153,7 +159,8 @@ export function LeftPanel() {
           </button>
           <button
             onClick={() => setSettingsOpen(true)}
-            className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-muted transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="设置"
           >
             <Settings className="h-4 w-4" />
           </button>
@@ -164,13 +171,13 @@ export function LeftPanel() {
         {/* 提示词 */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
-            <span>📝</span> 提示词
+            <FileText className="h-4 w-4 text-primary" /> 提示词
           </Label>
           <Textarea
             value={draft.prompt}
             onChange={(e) => setDraftPrompt(e.target.value)}
             placeholder="一只穿着宇航服的猫咪站在月球表面，赛博朋克风格..."
-            className="min-h-[120px] resize-none"
+            className="min-h-[120px] resize-none rounded-2xl bg-background/60"
             maxLength={20000}
           />
           <p className="text-xs text-muted-foreground text-right">
@@ -181,7 +188,7 @@ export function LeftPanel() {
         {/* 参考图上传 */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
-            <span>🖼️</span> 参考图
+            <ImageIcon className="h-4 w-4 text-primary" /> 参考图
             <Badge variant="secondary" className="ml-auto text-xs">
               {draft.referenceImages.length}/5
             </Badge>
@@ -202,9 +209,9 @@ export function LeftPanel() {
                 <img
                   src={img.preview}
                   alt="参考图"
-                  className="w-full aspect-square object-cover rounded-lg"
+                  className="w-full aspect-square rounded-2xl object-cover"
                 />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg pointer-events-none">
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
                   <ZoomIn className="h-6 w-6 text-white" />
                 </div>
                 <button
@@ -212,7 +219,8 @@ export function LeftPanel() {
                     e.stopPropagation();
                     removeDraftReferenceImage(img.id);
                   }}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  className="absolute -right-1.5 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100"
+                  aria-label="移除参考图"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -223,7 +231,7 @@ export function LeftPanel() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className={cn(
-                  "border-2 border-dashed rounded-lg flex flex-col items-center justify-center hover:border-primary hover:bg-primary/5 transition-colors",
+                  "flex flex-col items-center justify-center rounded-2xl border border-dashed bg-background/45 transition-colors hover:border-primary hover:bg-primary/5",
                   draft.referenceImages.length === 0
                     ? "w-full aspect-square"
                     : "w-16 h-16"
@@ -257,12 +265,12 @@ export function LeftPanel() {
         {/* 比例设置 */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
-            <span>📐</span> 比例
+            <Ratio className="h-4 w-4 text-primary" /> 比例
           </Label>
           <select
             value={draft.selectedRatio}
             onChange={(e) => setDraftRatio(e.target.value)}
-            className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            className="h-10 w-full rounded-xl border border-input bg-background/60 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
             {ASPECT_RATIO_PRESETS.map((preset) => (
               <option key={preset.value} value={preset.value}>
@@ -286,7 +294,7 @@ export function LeftPanel() {
         {/* 画质选择 */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
-            <span>💎</span> 画质
+            <Gem className="h-4 w-4 text-primary" /> 画质
           </Label>
           <div className="grid grid-cols-4 gap-2">
             {QUALITY_OPTIONS.map((opt) => (
@@ -294,10 +302,10 @@ export function LeftPanel() {
                 key={opt.value}
                 onClick={() => setDraftQuality(opt.value)}
                 className={cn(
-                  "py-2 px-3 rounded-lg border-2 text-center text-sm transition-all",
+                  "rounded-xl border px-3 py-2 text-center text-sm transition-all",
                   draft.quality === opt.value
-                    ? "border-primary bg-primary/5 font-medium"
-                    : "border-transparent bg-muted hover:border-muted-foreground/20"
+                    ? "border-primary bg-primary/10 font-medium text-foreground"
+                    : "border-border/50 bg-muted/40 text-muted-foreground hover:border-primary/30 hover:text-foreground"
                 )}
               >
                 {opt.label}
@@ -309,7 +317,7 @@ export function LeftPanel() {
         {/* 并发数 */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
-            <span>⚡</span> 并发数: {draft.concurrency}
+            <Layers3 className="h-4 w-4 text-primary" /> 并发数: {draft.concurrency}
           </Label>
           <div className="flex items-center gap-3">
             <input
@@ -333,8 +341,8 @@ export function LeftPanel() {
 
         {/* 风控保险 */}
         <div className="flex items-center justify-between py-2">
-          <Label className="flex items-center gap-1.5 cursor-pointer">
-            <span>🛡️</span> 风控保险
+          <Label className="flex cursor-pointer items-center gap-1.5">
+            <ShieldCheck className="h-4 w-4 text-primary" /> 风控保险
           </Label>
           <label className="relative inline-flex items-center cursor-pointer">
             <input
@@ -349,10 +357,10 @@ export function LeftPanel() {
       </div>
 
       {/* 生成按钮 */}
-      <div className="p-4 border-t space-y-2">
+      <div className="space-y-2 border-t soft-divider p-4">
         {hasRunningTasks ? (
           <Button
-            className="w-full h-12 text-base"
+            className="h-12 w-full rounded-2xl text-base"
             variant="destructive"
             onClick={cancelGeneration}
           >
@@ -361,7 +369,7 @@ export function LeftPanel() {
           </Button>
         ) : (
           <Button
-            className="w-full h-12 text-base bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+            className="h-12 w-full rounded-2xl bg-primary text-base text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90"
             disabled={!draft.prompt.trim() || isGenerating}
             onClick={async () => {
               setIsGenerating(true);

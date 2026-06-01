@@ -37,50 +37,52 @@ export default function Home() {
   }, [loadConversations]);
 
   return (
-    <main className="flex min-h-screen bg-background">
+    <main className="app-canvas flex min-h-dvh bg-background text-foreground">
       {/* 桌面端左侧会话列表 */}
       <div className="hidden lg:block relative">
         <ConversationList collapsed={sidebarCollapsed} />
         {/* 收起/展开按钮 */}
         <button
+          aria-label={sidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="absolute -right-3 top-20 z-10 w-6 h-6 rounded-full bg-card border border-border/50 shadow-md flex items-center justify-center hover:bg-accent transition-colors"
+          className="absolute -right-4 top-24 z-10 flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-card/90 text-muted-foreground shadow-lg shadow-black/10 backdrop-blur-md transition-all hover:-translate-y-0.5 hover:text-foreground hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
         >
           {sidebarCollapsed ? (
-            <PanelLeft className="h-3 w-3 text-muted-foreground" />
+            <PanelLeft className="h-4 w-4" />
           ) : (
-            <PanelLeftClose className="h-3 w-3 text-muted-foreground" />
+            <PanelLeftClose className="h-4 w-4" />
           )}
         </button>
       </div>
 
       {/* 移动端抽屉 */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b border-border/50">
-        <div className="flex items-center justify-between p-3">
+      <div className="fixed left-0 right-0 top-0 z-40 border-b border-border/60 bg-card/86 backdrop-blur-xl lg:hidden">
+        <div className="flex items-center justify-between px-3 py-3">
           <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
             <DrawerTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" aria-label="打开会话列表" className="h-10 w-10">
                 <Menu className="h-5 w-5" />
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="h-[85vh]">
-              <div className="overflow-y-auto h-full">
+            <DrawerContent className="h-[88vh] border-border/70 bg-card">
+              <div className="h-full overflow-y-auto premium-scroll">
                 <ConversationList collapsed={false} />
               </div>
             </DrawerContent>
           </Drawer>
 
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-              <Sparkles className="h-3.5 w-3.5 text-white" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+              <Sparkles className="h-4 w-4" />
             </div>
-            <span className="font-semibold">AI 绘画</span>
+            <span className="text-sm font-semibold tracking-normal">AI 绘画工作台</span>
           </div>
 
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-10 w-10"
+            aria-label="切换主题"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
             {mounted && (theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />)}
@@ -89,7 +91,7 @@ export default function Home() {
       </div>
 
       {/* 主内容区：对话流 + 底部输入 */}
-      <div className="flex-1 flex flex-col lg:ml-0 mt-[57px] lg:mt-0 h-screen overflow-hidden">
+      <div className="mt-[65px] flex h-[calc(100dvh-65px)] flex-1 flex-col overflow-hidden lg:mt-0 lg:h-dvh lg:pl-0">
         <RightPanel />
         <InputArea />
       </div>

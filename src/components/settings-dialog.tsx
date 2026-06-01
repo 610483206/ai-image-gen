@@ -86,15 +86,15 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="studio-panel gap-5 rounded-2xl p-5 sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>API 配置</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg font-semibold tracking-normal">API 配置</DialogTitle>
+          <DialogDescription className="leading-relaxed">
             配置 OpenAI 兼容 API 的地址、密钥和模型。所有配置仅存储在浏览器本地。
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-5 py-1">
           {/* BaseURL */}
           <div className="space-y-2">
             <Label htmlFor="baseURL">Base URL</Label>
@@ -103,11 +103,12 @@ export function SettingsDialog() {
               value={baseURL}
               onChange={(e) => setBaseURL(e.target.value)}
               placeholder="https://api.openai.com/v1"
+              className="h-10 rounded-xl bg-background/60"
             />
             <p className="text-xs text-muted-foreground">
               支持 OpenAI 官方及任意兼容协议的中转地址
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
               <Switch
                 id="useFullUrl"
                 checked={useFullUrl}
@@ -129,20 +130,21 @@ export function SettingsDialog() {
             <Label htmlFor="apiKey">API Key</Label>
             <div className="relative">
               <Input
-                id="apiKey"
-                type={showKey ? "text" : "password"}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowKey(!showKey)}
-              >
+              id="apiKey"
+              type={showKey ? "text" : "password"}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-..."
+              className="h-10 rounded-xl bg-background/60 pr-12"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1 h-8 w-8 rounded-lg"
+              onClick={() => setShowKey(!showKey)}
+              aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
+            >
                 {showKey ? (
                   <EyeOff className="h-4 w-4" />
                 ) : (
@@ -160,6 +162,7 @@ export function SettingsDialog() {
               value={modelId}
               onChange={(e) => setModelId(e.target.value)}
               placeholder="gpt-image-1"
+              className="h-10 rounded-xl bg-background/60"
             />
             <div className="flex flex-wrap gap-1.5">
               {MODEL_PRESETS.map((preset) => (
@@ -167,10 +170,10 @@ export function SettingsDialog() {
                   key={preset.value}
                   type="button"
                   onClick={() => setModelId(preset.value)}
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                  className={`min-h-8 rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 ${
                     modelId === preset.value
                       ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted hover:bg-muted/80 border-transparent"
+                      : "border-border/70 bg-muted/40 hover:bg-muted"
                   }`}
                 >
                   {preset.label}
@@ -185,10 +188,10 @@ export function SettingsDialog() {
           {/* 测试结果 */}
           {testResult && (
             <div
-              className={`flex items-center gap-2 text-sm ${
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${
                 testResult === "success"
-                  ? "text-green-600"
-                  : "text-destructive"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                  : "border-destructive/30 bg-destructive/10 text-destructive"
               }`}
             >
               {testResult === "success" ? (
@@ -201,16 +204,17 @@ export function SettingsDialog() {
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="-mx-5 -mb-5 gap-2 rounded-b-2xl border-border/70 bg-muted/30 p-5 sm:gap-2">
           <Button
             variant="outline"
             onClick={handleTestConnection}
             disabled={testing || !baseURL || !apiKey}
+            className="h-10 rounded-xl"
           >
             {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             测试连接
           </Button>
-          <Button onClick={handleSave}>保存</Button>
+          <Button onClick={handleSave} className="h-10 rounded-xl shadow-lg shadow-primary/20">保存</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

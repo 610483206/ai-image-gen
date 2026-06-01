@@ -11,6 +11,9 @@ import {
   Square,
   X,
   Plus,
+  Ratio,
+  Gem,
+  Layers3,
 } from "lucide-react";
 import { ImageLightbox } from "@/components/image-lightbox";
 
@@ -195,8 +198,8 @@ export function InputArea() {
   return (
     <div
       ref={dropZoneRef}
-      className={`border-t border-border/50 bg-card shrink-0 transition-colors ${
-        isDragging ? "bg-primary/5 border-primary" : ""
+      className={`relative shrink-0 border-t border-border/60 bg-card/80 backdrop-blur-xl transition-colors ${
+        isDragging ? "border-primary bg-primary/5" : ""
       }`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -204,12 +207,12 @@ export function InputArea() {
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-50 pointer-events-none">
-          <div className="text-primary font-medium">松开鼠标上传图片</div>
+        <div className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-sm">
+          <div className="rounded-full bg-card/90 px-4 py-2 text-sm font-medium text-primary shadow-lg">松开鼠标上传图片</div>
         </div>
       )}
 
-      <div className="p-4">
+      <div className="mx-auto max-w-5xl p-4 lg:px-8">
         {/* 参考图 - 扇形展开效果 */}
         <div
           className="mb-3"
@@ -237,7 +240,7 @@ export function InputArea() {
                     onClick={() => setPreviewImage(img.preview)}
                   >
                     <div className="relative group">
-                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md transition-all duration-300 group-hover:border-primary group-hover:scale-110">
+                      <div className="h-12 w-12 overflow-hidden rounded-2xl border-2 border-background bg-muted shadow-lg shadow-black/10 transition-all duration-300 group-hover:border-primary group-hover:scale-105">
                         <img
                           src={img.preview}
                           alt="参考图"
@@ -249,7 +252,8 @@ export function InputArea() {
                           e.stopPropagation();
                           removeDraftReferenceImage(img.id);
                         }}
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 hover:scale-110"
+                        className="absolute -right-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 shadow-md transition-all duration-200 hover:scale-105 group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                        aria-label="移除参考图"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -264,13 +268,14 @@ export function InputArea() {
               {imageCount < 3 && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-12 h-12 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center text-muted-foreground/50 hover:border-primary/50 hover:text-primary/50 transition-all duration-300 hover:scale-105"
+                  className="flex h-12 w-12 items-center justify-center rounded-2xl border border-dashed border-muted-foreground/30 bg-background/50 text-muted-foreground transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/60 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                  aria-label="上传参考图"
                 >
                   <Plus className="h-5 w-5" />
                 </button>
               )}
               {imageCount > 0 && (
-                <span className="text-xs text-muted-foreground">{imageCount}/3</span>
+                <span className="rounded-full border border-border/60 bg-background/50 px-2 py-1 text-xs text-muted-foreground">{imageCount}/3</span>
               )}
             </div>
           </div>
@@ -286,18 +291,19 @@ export function InputArea() {
               adjustTextareaHeight();
             }}
             onKeyDown={handleKeyDown}
-            placeholder="描述你想要的图片或修改建议..."
-            className="min-h-[52px] max-h-[160px] resize-none rounded-2xl bg-muted/50 border-border/50 focus:bg-muted transition-colors pr-24"
+            placeholder="描述画面、风格、光线、镜头或修改建议..."
+            className="min-h-[64px] max-h-[160px] resize-none rounded-3xl border-border/70 bg-background/70 py-4 pl-4 pr-28 text-[15px] shadow-[0_16px_50px_rgba(8,13,24,0.10)] backdrop-blur-xl transition-colors focus:bg-background"
             maxLength={20000}
             rows={1}
           />
 
-          <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
+          <div className="absolute bottom-3 right-3 flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-full hover:bg-muted"
+              className="h-10 w-10 rounded-2xl text-muted-foreground hover:bg-muted hover:text-foreground"
               onClick={() => fileInputRef.current?.click()}
+              aria-label="添加参考图"
             >
               <Paperclip className="h-4 w-4" />
             </Button>
@@ -306,17 +312,19 @@ export function InputArea() {
               <Button
                 variant="destructive"
                 size="icon"
-                className="h-8 w-8 rounded-full"
+                className="h-10 w-10 rounded-2xl"
                 onClick={cancelGeneration}
+                aria-label="停止生成"
               >
                 <Square className="h-4 w-4" />
               </Button>
             ) : (
               <Button
                 size="icon"
-                className="h-8 w-8 rounded-full bg-foreground text-background hover:bg-foreground/90"
+                className="h-10 w-10 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90"
                 disabled={!draft.prompt.trim() && draft.referenceImages.length === 0 || isSending}
                 onClick={handleSend}
+                aria-label="发送生成请求"
               >
                 <ArrowUp className="h-4 w-4" />
               </Button>
@@ -325,12 +333,13 @@ export function InputArea() {
         </div>
 
         {/* 参数工具栏 - 带提示 */}
-        <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <div className="relative group">
             <select
               value={draft.selectedRatio}
               onChange={(e) => setDraftRatio(e.target.value)}
-              className="h-8 pl-7 pr-3 rounded-full border border-border/50 bg-muted/50 text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-9 min-w-[108px] cursor-pointer rounded-full border border-border/70 bg-background/60 pl-9 pr-3 text-xs text-foreground shadow-sm outline-none transition-colors hover:border-primary/40 focus:ring-2 focus:ring-ring/50"
+              aria-label="选择图片比例"
             >
               {ASPECT_RATIO_PRESETS.map((preset) => (
                 <option key={preset.value} value={preset.value}>
@@ -339,8 +348,8 @@ export function InputArea() {
               ))}
               <option value="custom">自定义</option>
             </select>
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs">📐</span>
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            <Ratio className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
               比例（默认自动）
             </div>
           </div>
@@ -350,7 +359,7 @@ export function InputArea() {
               value={draft.customRatio}
               onChange={(e) => setDraftCustomRatio(e.target.value)}
               placeholder="宽:高"
-              className="h-8 w-20 text-xs rounded-full bg-muted/50 border-border/50"
+              className="h-9 w-24 rounded-full border-border/70 bg-background/60 text-xs shadow-sm"
             />
           )}
 
@@ -358,7 +367,8 @@ export function InputArea() {
             <select
               value={draft.quality}
               onChange={(e) => setDraftQuality(e.target.value as "low" | "medium" | "high" | "auto")}
-              className="h-8 pl-7 pr-3 rounded-full border border-border/50 bg-muted/50 text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-9 min-w-[110px] cursor-pointer rounded-full border border-border/70 bg-background/60 pl-9 pr-3 text-xs text-foreground shadow-sm outline-none transition-colors hover:border-primary/40 focus:ring-2 focus:ring-ring/50"
+              aria-label="选择生成质量"
             >
               {QUALITY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -366,8 +376,8 @@ export function InputArea() {
                 </option>
               ))}
             </select>
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs">💎</span>
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            <Gem className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
               质量（默认高品质）
             </div>
           </div>
@@ -376,7 +386,8 @@ export function InputArea() {
             <select
               value={draft.concurrency}
               onChange={(e) => setDraftConcurrency(Number(e.target.value))}
-              className="h-8 pl-7 pr-3 rounded-full border border-border/50 bg-muted/50 text-xs focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              className="h-9 min-w-[92px] cursor-pointer rounded-full border border-border/70 bg-background/60 pl-9 pr-3 text-xs text-foreground shadow-sm outline-none transition-colors hover:border-primary/40 focus:ring-2 focus:ring-ring/50"
+              aria-label="选择生成张数"
             >
               {Array.from({ length: 3 }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
@@ -384,8 +395,8 @@ export function InputArea() {
                 </option>
               ))}
             </select>
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs">⚡</span>
-            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-foreground text-background text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+            <Layers3 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
               并发（默认1）
             </div>
           </div>

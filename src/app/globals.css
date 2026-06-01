@@ -4,48 +4,48 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 42 35% 96%;
+    --foreground: 220 32% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 220 32% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --popover-foreground: 220 32% 9%;
+    --primary: 217 72% 44%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 27% 92%;
+    --secondary-foreground: 220 28% 16%;
+    --muted: 214 24% 92%;
+    --muted-foreground: 220 12% 41%;
+    --accent: 188 72% 40%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 74% 54%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
+    --border: 218 22% 84%;
+    --input: 218 22% 88%;
+    --ring: 188 72% 40%;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 222 12% 14%;
-    --foreground: 0 0% 93%;
-    --card: 222 12% 17%;
-    --card-foreground: 0 0% 93%;
-    --popover: 222 12% 17%;
-    --popover-foreground: 0 0% 93%;
-    --primary: 0 0% 96%;
-    --primary-foreground: 222 12% 14%;
-    --secondary: 220 11% 21%;
-    --secondary-foreground: 0 0% 93%;
-    --muted: 220 11% 21%;
-    --muted-foreground: 220 9% 55%;
-    --accent: 220 11% 21%;
-    --accent-foreground: 0 0% 93%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 220 28% 7%;
+    --foreground: 42 38% 94%;
+    --card: 221 25% 11%;
+    --card-foreground: 42 38% 94%;
+    --popover: 221 25% 11%;
+    --popover-foreground: 42 38% 94%;
+    --primary: 188 82% 54%;
+    --primary-foreground: 220 28% 7%;
+    --secondary: 219 21% 16%;
+    --secondary-foreground: 42 38% 94%;
+    --muted: 219 20% 15%;
+    --muted-foreground: 218 14% 68%;
+    --accent: 42 92% 61%;
+    --accent-foreground: 220 28% 7%;
+    --destructive: 0 72% 58%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 11% 24%;
-    --input: 220 11% 24%;
-    --ring: 224 76% 48%;
+    --border: 219 19% 20%;
+    --input: 219 19% 22%;
+    --ring: 188 82% 54%;
   }
 }
 
@@ -55,6 +55,55 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .app-canvas {
+    background:
+      linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--background)) 54%, hsl(var(--secondary) / 0.38) 100%),
+      linear-gradient(90deg, hsl(var(--border) / 0.18) 1px, transparent 1px),
+      linear-gradient(0deg, hsl(var(--border) / 0.16) 1px, transparent 1px);
+    background-size: auto, 44px 44px, 44px 44px;
+  }
+
+  .dark .app-canvas {
+    background:
+      linear-gradient(135deg, hsl(220 28% 7%) 0%, hsl(218 27% 8%) 46%, hsl(188 60% 11%) 100%),
+      linear-gradient(90deg, hsl(var(--border) / 0.2) 1px, transparent 1px),
+      linear-gradient(0deg, hsl(var(--border) / 0.18) 1px, transparent 1px);
+    background-size: auto, 42px 42px, 42px 42px;
+  }
+
+  .studio-panel {
+    @apply border border-border/70 bg-card/80 shadow-[0_18px_60px_rgba(8,13,24,0.12)] backdrop-blur-xl;
+  }
+
+  .dark .studio-panel {
+    @apply bg-card/75 shadow-[0_22px_70px_rgba(0,0,0,0.34)];
+  }
+
+  .soft-divider {
+    @apply border-border/60;
+  }
+
+  .premium-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.28) transparent;
+  }
+
+  .premium-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .premium-scroll::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.25);
+    border-radius: 999px;
+  }
+
+  .premium-scroll::-webkit-scrollbar-track {
+    background: transparent;
   }
 }
 
@@ -115,24 +164,93 @@
   animation: gradient-shift 3s ease infinite;
 }
 
-/* 悬挂照片动画 - 微弱摆动 */
-@keyframes photo-swing {
-  0%, 100% { transform: rotate(var(--swing-start, -1deg)); }
-  50% { transform: rotate(var(--swing-end, 1deg)); }
+/* ===== 空状态首页 - 高级动效 ===== */
+
+/* 极光光斑缓慢漂浮 */
+@keyframes aurora-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  33%  { transform: translate3d(7%, -5%, 0) scale(1.1); }
+  66%  { transform: translate3d(-6%, 6%, 0) scale(0.94); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
 }
 
-.hanging-photo {
-  animation: photo-swing 5s ease-in-out infinite;
-  transform-origin: top center;
+.empty-aurora {
+  filter: blur(64px);
+  animation: aurora-drift 20s ease-in-out infinite;
+  will-change: transform;
 }
 
-.hanging-photo:nth-child(1) { --swing-start: -1.2deg; --swing-end: 0.5deg; animation-delay: 0s; }
-.hanging-photo:nth-child(2) { --swing-start: 0.6deg; --swing-end: -0.8deg; animation-delay: 0.5s; }
-.hanging-photo:nth-child(3) { --swing-start: -0.4deg; --swing-end: 1deg; animation-delay: 1s; }
-.hanging-photo:nth-child(4) { --swing-start: 0.8deg; --swing-end: -0.5deg; animation-delay: 1.5s; }
-.hanging-photo:nth-child(5) { --swing-start: -0.8deg; --swing-end: 1.2deg; animation-delay: 2s; }
+/* 画廊跑马灯 - 无限横向滚动 */
+@keyframes marquee-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes marquee-right {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+
+/* 用每张卡片的右外边距代替 flex gap，保证复制一份后 translateX(-50%) 精确无缝 */
+.marquee-row {
+  display: flex;
+  width: max-content;
+}
+.marquee-row.is-left  { animation: marquee-left 40s linear infinite; }
+.marquee-row.is-right { animation: marquee-right 46s linear infinite; }
+.marquee-viewport:hover .marquee-row { animation-play-state: paused; }
+
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+}
+
+/* 分层入场 - 上浮淡入 */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.reveal-up {
+  animation: reveal-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 渐变流光标题 */
+.text-gradient-animate {
+  background-image: linear-gradient(
+    110deg,
+    hsl(var(--foreground)),
+    hsl(var(--primary)),
+    hsl(var(--accent)),
+    hsl(var(--foreground))
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-shift 6s ease infinite;
+}
+
+/* 徽章呼吸点 */
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5); }
+  70%  { box-shadow: 0 0 0 7px hsl(var(--primary) / 0); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+}
+.animate-pulse-ring { animation: pulse-ring 2.4s ease-out infinite; }
+
+/* 无障碍 - 减弱动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .empty-aurora,
+  .marquee-row,
+  .reveal-up,
+  .text-gradient-animate,
+  .animate-pulse-ring {
+    animation: none !important;
+  }
+  .text-gradient-animate { color: hsl(var(--foreground)); }
+}
 
 /* 字体覆盖 */
 body {
   font-family: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+  letter-spacing: 0;
 }
