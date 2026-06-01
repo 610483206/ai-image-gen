@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { X, Download, Copy, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -55,7 +56,10 @@ export function ImageLightbox({ src, alt, prompt, onClose }: ImageLightboxProps)
 
   const imageSrc = src.startsWith("data:") ? src : `data:image/png;base64,${src}`;
 
-  return (
+  // 通过 Portal 渲染到 body，避免被带 backdrop-filter/transform 的祖先困住 fixed 定位
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
       onClick={onClose}
@@ -139,6 +143,7 @@ export function ImageLightbox({ src, alt, prompt, onClose }: ImageLightboxProps)
           </p>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
