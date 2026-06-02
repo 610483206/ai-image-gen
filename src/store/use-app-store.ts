@@ -194,50 +194,66 @@ async function compressReferenceImage(dataUrl: string): Promise<string> {
 /**
  * 请求桌面通知权限。
  * 必须在用户手势上下文中调用（如点击"发送/生成"按钮），否则浏览器会忽略请求。
+ * 整体兜底：权限请求的任何异常都不应影响业务逻辑。
  */
 function ensureNotificationPermission(): void {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission === "default") {
-    // 仅在未决定时请求一次；结果会写入 Notification.permission
-    void Notification.requestPermission();
+  try {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission === "default") {
+      // 仅在未决定时请求一次；结果会写入 Notification.permission
+      void Notification.requestPermission().catch(() => {});
+    }
+  } catch {
+    // 通知能力不可用/请求异常时静默忽略，不影响生图流程
   }
 }
 
 /**
- * 生成批次结束后弹出 Windows/桌面通知。
- * 仅在页面不在前台（已切走或最小化）时通知，避免用户正盯着页面时被打扰。
+ * 一组任务结束后弹出 Windows/桌面通知（成功或失败都通知）。
+ * 适用于整批生成、整条重生、单图重试、重新检查等所有结束场景。
+ * 用户主动取消（error 为"已取消"）不计入失败、也不弹通知。
+ * 整体兜底：通知失败或任何异常都不应影响业务逻辑。
  */
-function notifyBatchDone(successCount: number, failCount: number): void {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
-  // 页面仍可见且处于焦点时不打扰，UI 上已能看到结果
-  if (document.visibilityState === "visible" && document.hasFocus()) return;
-
-  let title: string;
-  let body: string;
-  if (failCount === 0) {
-    title = "图片生成完成 ✨";
-    body = `${successCount} 张图片已生成完毕`;
-  } else if (successCount === 0) {
-    title = "图片生成失败";
-    body = `${failCount} 张图片生成失败，可点击重试`;
-  } else {
-    title = "图片生成结束";
-    body = `成功 ${successCount} 张，失败 ${failCount} 张`;
-  }
-
+function notifyBatchDone(tasks: GenerateTask[]): void {
   try {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+
+    const successCount = tasks.filter((t) => t.status === "success").length;
+    const failCount = tasks.filter(
+      (t) => t.status === "failed" && t.error !== "已取消"
+    ).length;
+    // 纯取消或无终态任务时不打扰
+    if (successCount === 0 && failCount === 0) return;
+
+    let title: string;
+    let body: string;
+    if (failCount === 0) {
+      title = "图片生成完成 ✨";
+      body = `${successCount} 张图片已生成完毕`;
+    } else if (successCount === 0) {
+      title = "图片生成失败";
+      body = `${failCount} 张图片生成失败，可点击重试`;
+    } else {
+      title = "图片生成结束";
+      body = `成功 ${successCount} 张，失败 ${failCount} 张`;
+    }
+
     const notification = new Notification(title, {
       body,
       icon: "/favicon.ico",
       tag: "ai-image-gen", // 同 tag 会合并，避免堆叠多条
     });
     notification.onclick = () => {
-      window.focus();
-      notification.close();
+      try {
+        window.focus();
+        notification.close();
+      } catch {
+        // 忽略
+      }
     };
   } catch {
-    // 个别环境下 new Notification 需 Service Worker，失败则静默忽略
+    // 通知失败/异常绝不影响业务逻辑（如权限被拒、需 Service Worker 等）
   }
 }
 
@@ -889,21 +905,13 @@ export const useAppStore = create<AppState>()(
         const promises = tasks.map((task) => executeTask(task));
         await Promise.allSettled(promises);
 
-        // 整批结束后弹桌面通知（仅在页面不在前台时）
+        // 整批结束后弹桌面通知
         const settledMsg = get()
           .conversations.find((c) => c.id === convId)
           ?.messages.find((m) => m.id === assistantMessage.id) as
           | (Message & { role: "assistant" })
           | undefined;
-        if (settledMsg) {
-          const successCount = settledMsg.tasks.filter(
-            (t) => t.status === "success"
-          ).length;
-          const failCount = settledMsg.tasks.filter(
-            (t) => t.status === "failed"
-          ).length;
-          notifyBatchDone(successCount, failCount);
-        }
+        if (settledMsg) notifyBatchDone(settledMsg.tasks);
 
         // 更新 assistant message 的 durationMs
         const durationMs = Date.now() - startTime;
@@ -1128,6 +1136,14 @@ export const useAppStore = create<AppState>()(
           tasks.map((task, index) => executeTask(task, index))
         );
 
+        // 整条重生结束后弹桌面通知
+        const settledMsg = get()
+          .conversations.find((c) => c.id === conv.id)
+          ?.messages.find((m) => m.id === assistantMessageId) as
+          | (Message & { role: "assistant" })
+          | undefined;
+        if (settledMsg) notifyBatchDone(settledMsg.tasks);
+
         // 保存会话
         const updatedConv = get().conversations.find(
           (c) => c.id === conv.id
@@ -1305,6 +1321,16 @@ export const useAppStore = create<AppState>()(
             ),
           }));
         }
+
+        // 单图重试结束后弹桌面通知（成功或失败）
+        const settledTask = (
+          get()
+            .conversations.find((c) => c.id === conv.id)
+            ?.messages.find(
+              (m) => m.id === assistantMessageId && m.role === "assistant"
+            ) as (Message & { role: "assistant" }) | undefined
+        )?.tasks[taskIndex];
+        if (settledTask) notifyBatchDone([settledTask]);
 
         // 保存会话
         const updatedConv = get().conversations.find(
@@ -1495,6 +1521,16 @@ export const useAppStore = create<AppState>()(
             ),
           }));
         }
+
+        // 重新检查结束后弹桌面通知（成功或失败）
+        const settledTask = (
+          get()
+            .conversations.find((c) => c.id === conv.id)
+            ?.messages.find(
+              (m) => m.id === assistantMessageId && m.role === "assistant"
+            ) as (Message & { role: "assistant" }) | undefined
+        )?.tasks[taskIndex];
+        if (settledTask) notifyBatchDone([settledTask]);
 
         // 保存会话
         const updatedConv = get().conversations.find((c) => c.id === conv.id);
