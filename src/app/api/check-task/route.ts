@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /** 从完整 URL 中提取 origin（域名+协议） */
 function extractOrigin(url: string): string {
