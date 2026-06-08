@@ -1,3 +1,5 @@
+import { jsonAuthError, requireUser } from "@/lib/auth/session";
+
 /**
  * 上传图片到 Cloudflare KV
  * 返回可通过 /api/image/[key] 访问的公网 URL
@@ -6,6 +8,12 @@
 export const runtime = "nodejs";
 
 export async function POST(request: Request, context: { env: { IMAGES_BUCKET: KVNamespace } }) {
+  try {
+    await requireUser();
+  } catch (error) {
+    return jsonAuthError(error);
+  }
+
   const { IMAGES_BUCKET } = context.env;
 
   if (!IMAGES_BUCKET) {

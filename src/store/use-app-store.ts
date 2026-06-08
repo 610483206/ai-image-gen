@@ -257,17 +257,20 @@ function notifyBatchDone(tasks: GenerateTask[]): void {
   }
 }
 
+function notifyQuotaChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("quota:refresh"));
+  }
+}
+
 /** 通过 SSE 流式调用生图 API */
 async function streamGenerate(
   params: {
-    baseURL: string;
-    apiKey: string;
-    modelId: string;
+    clientTaskId: string;
     prompt: string;
     size: string;
     quality: string;
     referenceImages?: { data: string; name: string; type: string }[];
-    useFullUrl?: boolean;
   },
   signal?: AbortSignal
 ): Promise<{ success: boolean; imageBase64?: string; revisedPrompt?: string; error?: string; taskId?: string }> {
@@ -324,11 +327,52 @@ async function streamGenerate(
   return { success: false, error: "连接意外关闭" };
 }
 
-/** 从首条用户消息生成会话标题 */
+/** 从首条用户消息智能生成会话标题（客户端关键词提取） */
 function generateTitle(prompt: string): string {
-  const cleaned = prompt.replace(/\n/g, " ").trim();
-  if (cleaned.length <= 20) return cleaned || "新会话";
-  return cleaned.slice(0, 20) + "…";
+  let text = prompt.replace(/[\r\n]+/g, " ").trim();
+  if (!text) return "新会话";
+
+  // 去除常见 prompt 前缀（中文 / 英文）
+  text = text.replace(
+    /^(?:请(?:帮我)?(?:画|生成|创作|设计|绘|出)|帮我(?:画|生成|创作)|画一?张|生成一?张|create|generate|draw|make|design|imagine|paint)\s*[：:，,]?\s*/i,
+    ""
+  );
+
+  // 去除质量/风格标签和技术参数
+  text = text
+    .replace(/\d+\s*[kKxX×]\s*(?:壁纸|wallpaper)?/g, "")
+    .replace(/(?:\d+:\d+|\d+(\.\d+)?\s*[xX×]\s*\d+)/g, "")
+    .replace(
+      /(?:masterpiece|best\s+quality|high\s*(?:res|quality)|ultra\s*(?:detailed|quality)|photorealistic|8k|4k|HDR|RAW|sharp\s*focus|studio\s*quality|award[\s-]*winning|cinematic\s*lighting|bokeh|depth\s*of\s*field|film\s*grain|volumetric\s*lighting|hyper[\s-]*detailed|extremely\s*detailed|insanely\s*detailed|intricate\s*details|highly\s*detailed)/gi,
+      ""
+    );
+
+  // 去除冗余连接词
+  text = text.replace(/[,，]\s*(?:with|featuring|showing|displaying)\s+/gi, "，");
+
+  // 清理标点和空白
+  text = text
+    .replace(/\s*[，,·、]\s*/g, "，")
+    .replace(/^[，,·、\s]+/, "")
+    .replace(/[，,·、\s]+$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  if (!text) return "新会话";
+
+  // 根据语言选择标题长度（中文字符信息密度高，可以短一些）
+  const cjkCount = (text.match(/[一-鿿㐀-䶿]/g) || []).length;
+  const limit = cjkCount > text.length * 0.4 ? 25 : 50;
+
+  if (text.length <= limit) return text;
+
+  // 智能截断：优先在标点或词边界处断开
+  const truncated = text.slice(0, limit);
+  const boundary = truncated.match(/^(.*[，,、·.!？!])/);
+  if (boundary && boundary[1].length >= limit * 0.4) {
+    return boundary[1];
+  }
+  return truncated + "…";
 }
 
 /** 获取实际图片尺寸 */
@@ -828,14 +872,11 @@ export const useAppStore = create<AppState>()(
             // 通过 SSE 流式调用
             const result = await streamGenerate(
               {
-                baseURL: state.apiConfig.baseURL,
-                apiKey: getDecodedApiKey(),
-                modelId: state.apiConfig.modelId,
+                clientTaskId: task.id,
                 prompt: finalPrompt,
                 size: userMessage.params.size,
                 quality: userMessage.params.quality,
                 referenceImages: compressedImages.length > 0 ? compressedImages : undefined,
-                useFullUrl: state.apiConfig.useFullUrl,
               },
               abortController.signal
             );
@@ -898,6 +939,7 @@ export const useAppStore = create<AppState>()(
             }
           } finally {
             abortControllers.delete(task.id);
+            notifyQuotaChanged();
           }
         };
 
@@ -1050,14 +1092,11 @@ export const useAppStore = create<AppState>()(
             // 通过 SSE 流式调用
             const result = await streamGenerate(
               {
-                baseURL: state.apiConfig.baseURL,
-                apiKey: getDecodedApiKey(),
-                modelId: state.apiConfig.modelId,
+                clientTaskId: task.id,
                 prompt: userMsg.prompt,
                 size: userMsg.params.size,
                 quality: userMsg.params.quality,
                 referenceImages: compressedRefImages.length > 0 ? compressedRefImages : undefined,
-                useFullUrl: state.apiConfig.useFullUrl,
               },
               abortController.signal
             );
@@ -1143,6 +1182,7 @@ export const useAppStore = create<AppState>()(
           | (Message & { role: "assistant" })
           | undefined;
         if (settledMsg) notifyBatchDone(settledMsg.tasks);
+        notifyQuotaChanged();
 
         // 保存会话
         const updatedConv = get().conversations.find(
@@ -1243,14 +1283,11 @@ export const useAppStore = create<AppState>()(
           // 通过 SSE 流式调用
           const result = await streamGenerate(
             {
-              baseURL: state.apiConfig.baseURL,
-              apiKey: getDecodedApiKey(),
-              modelId: state.apiConfig.modelId,
+              clientTaskId: task.id,
               prompt: userMsg.prompt,
               size: userMsg.params.size,
               quality: userMsg.params.quality,
               referenceImages: compressedRefImages.length > 0 ? compressedRefImages : undefined,
-              useFullUrl: state.apiConfig.useFullUrl,
             },
             abortController.signal
           );
@@ -1331,6 +1368,7 @@ export const useAppStore = create<AppState>()(
             ) as (Message & { role: "assistant" }) | undefined
         )?.tasks[taskIndex];
         if (settledTask) notifyBatchDone([settledTask]);
+        notifyQuotaChanged();
 
         // 保存会话
         const updatedConv = get().conversations.find(
@@ -1432,10 +1470,8 @@ export const useAppStore = create<AppState>()(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              baseURL: state.apiConfig.baseURL,
-              apiKey: getDecodedApiKey(),
+              clientTaskId: task.id,
               taskId: task.taskId,
-              useFullUrl: state.apiConfig.useFullUrl,
             }),
           });
 
@@ -1531,6 +1567,7 @@ export const useAppStore = create<AppState>()(
             ) as (Message & { role: "assistant" }) | undefined
         )?.tasks[taskIndex];
         if (settledTask) notifyBatchDone([settledTask]);
+        notifyQuotaChanged();
 
         // 保存会话
         const updatedConv = get().conversations.find((c) => c.id === conv.id);

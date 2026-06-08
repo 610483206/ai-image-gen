@@ -1,4 +1,12 @@
 import { NextRequest } from "next/server";
+import { jsonAuthError, requireUser } from "@/lib/auth/session";
+import {
+  completeGenerationQuota,
+  markGenerationUpstreamTask,
+  releaseGenerationQuota,
+  reserveGenerationQuota,
+} from "@/lib/generation/quota";
+import { getUpstreamImageConfig } from "@/lib/generation/upstream-config";
 
 export const runtime = "nodejs";
 
@@ -35,7 +43,6 @@ async function uploadImageToKV(
 ): Promise<string> {
   const bytes = decodeBase64(base64Data);
 
-  // KV 可用时用 KV，否则回退到 tmpfiles.org（本地开发）
   if (kv) {
     const key = `img/${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
@@ -44,7 +51,6 @@ async function uploadImageToKV(
     return `${origin}/api/image/${key}`;
   }
 
-  // 回退：tmpfiles.org（本地开发用）
   const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
   const formData = new FormData();
   formData.append("file", new Blob([arrayBuffer], { type: "image/jpeg" }), "image.jpg");
@@ -59,35 +65,74 @@ async function uploadImageToKV(
 /**
  * 流式生图 API
  * 使用 SSE 保持连接活跃，避免 Cloudflare 100 秒超时
- *
- * 同时支持两种协议：
- * - OpenAI 标准：同步返回图片（/v1/images/generations）
- * - 异步任务模式：返回 task_id 后需轮询（/v1/media/generate）
  */
 export async function POST(request: NextRequest, context?: { env?: Env }) {
-  const body = await request.json();
-  const IMAGES_BUCKET = context?.env?.IMAGES_BUCKET;
+  let authContext: Awaited<ReturnType<typeof requireUser>>;
+  let body: Record<string, unknown>;
 
+  try {
+    authContext = await requireUser();
+    body = await request.json();
+  } catch (error) {
+    return jsonAuthError(error);
+  }
+
+  const IMAGES_BUCKET = context?.env?.IMAGES_BUCKET;
+  let upstreamConfig: ReturnType<typeof getUpstreamImageConfig>;
+  try {
+    upstreamConfig = getUpstreamImageConfig();
+  } catch (error) {
+    return jsonAuthError(error);
+  }
   const {
     baseURL: rawBaseURL,
     apiKey,
-    modelId = "gpt-image-2",
+    modelId,
+    useFullUrl,
+  } = upstreamConfig;
+
+  const {
+    clientTaskId,
     prompt,
-    size,
-    quality,
+    size = "1024x1024",
+    quality = "auto",
     referenceImages = [],
-    useFullUrl = false,
   } = body;
 
-  // 参数校验
-  if (!rawBaseURL || !apiKey || !prompt) {
-    return new Response(
-      JSON.stringify({ success: false, error: "缺少必要参数：baseURL、apiKey、prompt" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
+  if (typeof clientTaskId !== "string" || !clientTaskId || typeof prompt !== "string" || !prompt.trim()) {
+    return Response.json(
+      { success: false, error: "缺少必要参数：clientTaskId、prompt" },
+      { status: 400 }
     );
   }
 
-  // 创建 SSE 流
+  const imageRefs = Array.isArray(referenceImages) ? referenceImages : [];
+
+  try {
+    await reserveGenerationQuota({
+      userId: authContext.user.id,
+      clientTaskId,
+      prompt,
+      size: String(size),
+      quality: String(quality),
+    });
+  } catch (error) {
+    return jsonAuthError(error);
+  }
+
+  let quotaReserved = true;
+  const releaseReservedQuota = async (message: string) => {
+    if (!quotaReserved) return;
+    quotaReserved = false;
+    await releaseGenerationQuota(authContext.user.id, clientTaskId, message).catch(() => null);
+  };
+
+  const completeReservedQuota = async (upstreamTaskId?: string) => {
+    if (!quotaReserved) return;
+    await completeGenerationQuota(authContext.user.id, clientTaskId, upstreamTaskId);
+    quotaReserved = false;
+  };
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -112,12 +157,11 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
         sendEvent({ type: "start", message: "开始处理请求..." });
 
         const baseURL = rawBaseURL.replace(/\/+$/, "");
-        const hasRefImages = referenceImages.length > 0;
+        const hasRefImages = imageRefs.length > 0;
 
         let response: Response;
 
         if (!useFullUrl && hasRefImages) {
-          // === OpenAI 标准图片编辑模式：multipart/form-data → /images/edits ===
           const targetURL = `${baseURL}/images/edits`;
 
           sendEvent({ type: "progress", message: "正在准备参考图..." });
@@ -125,11 +169,11 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
           const formData = new FormData();
           formData.append("prompt", prompt);
           formData.append("model", modelId);
-          if (size) formData.append("size", size as string);
-          if (quality) formData.append("quality", quality as string);
+          if (size) formData.append("size", String(size));
+          if (quality) formData.append("quality", String(quality));
           formData.append("n", "1");
 
-          const limitedImages = referenceImages.slice(0, 3);
+          const limitedImages = imageRefs.slice(0, 3);
           for (let idx = 0; idx < limitedImages.length; idx++) {
             const img = limitedImages[idx] as { data: string; name: string; type: string };
             try {
@@ -139,7 +183,6 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
               const fileName = img.name || `image-${idx + 1}${ext}`;
               const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
               const blob = new Blob([arrayBuffer], { type: mimeType });
-              // OpenAI 标准：单图用 "image"，多图用 "image[]"
               const fieldName = limitedImages.length === 1 ? "image" : "image[]";
               formData.append(fieldName, blob, fileName);
               sendEvent({ type: "progress", message: `第 ${idx + 1} 张参考图已准备` });
@@ -155,12 +198,10 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
             method: "POST",
             headers: {
               Authorization: `Bearer ${apiKey}`,
-              // 不设置 Content-Type，让 fetch 自动生成 multipart boundary
             },
             body: formData,
           });
         } else {
-          // === 纯文本生图 或 自定义 URL 模式 ===
           const targetURL = useFullUrl ? baseURL : `${baseURL}/images/generations`;
 
           const requestBody: Record<string, unknown> = {
@@ -171,9 +212,8 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
             quality,
           };
 
-          // useFullUrl 模式下仍支持通过 KV 上传参考图 URL（兼容非标准 API）
           if (useFullUrl && hasRefImages) {
-            const limitedImages = referenceImages.slice(0, 3);
+            const limitedImages = imageRefs.slice(0, 3);
             sendEvent({ type: "progress", message: `正在上传 ${limitedImages.length} 张参考图...` });
 
             const imageUrls: string[] = [];
@@ -214,6 +254,7 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
           const errorData = await response.json().catch(() => null);
           const errorMessage =
             errorData?.msg || errorData?.error?.message || `API 请求失败: HTTP ${response.status}`;
+          await releaseReservedQuota(errorMessage);
           sendEvent({ type: "error", error: errorMessage });
           return;
         }
@@ -221,15 +262,13 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
         sendEvent({ type: "progress", message: "正在处理返回数据..." });
         const rawData = await response.json();
 
-        // ---- 检测异步任务模式（鸿蒙大模型中心等中转站） ----
         const taskId = rawData.task_id ?? rawData.data?.task_id;
         if (taskId !== undefined) {
+          const upstreamTaskId = String(taskId);
+          await markGenerationUpstreamTask(authContext.user.id, clientTaskId, upstreamTaskId);
           sendEvent({ type: "progress", message: "检测到异步任务，开始轮询结果..." });
 
           const apiOrigin = useFullUrl ? extractOrigin(rawBaseURL) : baseURL;
-          // Cloudflare Workers 限制单次调用最多 50 次子请求
-          // 预留 2 个给创建任务和下载图片，剩余 48 次用于轮询
-          // 5 秒间隔 × 48 次 = 240 秒（4 分钟），足够图片生成
           const maxPolls = 48;
           const pollInterval = 5000;
 
@@ -237,7 +276,7 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
             await new Promise((r) => setTimeout(r, pollInterval));
 
             try {
-              const statusUrl = `${apiOrigin}/v1/media/status?task_id=${taskId}`;
+              const statusUrl = `${apiOrigin}/v1/media/status?task_id=${upstreamTaskId}`;
               const statusRes = await fetch(statusUrl, {
                 headers: { Authorization: `Bearer ${apiKey}` },
               });
@@ -251,7 +290,9 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
 
               if (statusData.is_final) {
                 if (statusData.state === "failed") {
-                  sendEvent({ type: "error", error: statusData.error || "任务失败" });
+                  const errorMessage = statusData.error || "任务失败";
+                  await releaseReservedQuota(errorMessage);
+                  sendEvent({ type: "error", error: errorMessage });
                   return;
                 }
 
@@ -266,6 +307,7 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
                   }
                   const imageBase64 = btoa(binary);
 
+                  await completeReservedQuota(upstreamTaskId);
                   sendEvent({ type: "complete", success: true, imageBase64 });
                   return;
                 }
@@ -280,11 +322,10 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
             }
           }
 
-          sendEvent({ type: "error", error: "任务超时，请稍后重试", taskId: String(taskId) });
+          sendEvent({ type: "error", error: "任务超时，请稍后重试", taskId: upstreamTaskId });
           return;
         }
 
-        // ---- 标准同步模式（OpenAI 官方及兼容中转站） ----
         let imageBase64: string;
         let revisedPrompt: string | undefined;
 
@@ -302,21 +343,23 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
             }
             imageBase64 = btoa(binary);
           } else {
+            await releaseReservedQuota("API 返回的图片数据格式不正确");
             sendEvent({ type: "error", error: "API 返回的图片数据格式不正确" });
             return;
           }
           revisedPrompt = rawData.data[0].revised_prompt;
         } else {
+          await releaseReservedQuota("API 未返回图片数据");
           sendEvent({ type: "error", error: "API 未返回图片数据" });
           return;
         }
 
+        await completeReservedQuota();
         sendEvent({ type: "complete", success: true, imageBase64, revisedPrompt });
       } catch (error) {
-        sendEvent({
-          type: "error",
-          error: error instanceof Error ? error.message : "服务器内部错误",
-        });
+        const errorMessage = error instanceof Error ? error.message : "服务器内部错误";
+        await releaseReservedQuota(errorMessage);
+        sendEvent({ type: "error", error: errorMessage });
       } finally {
         clearInterval(heartbeat);
         safeClose();

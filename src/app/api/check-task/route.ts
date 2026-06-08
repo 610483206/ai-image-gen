@@ -1,4 +1,7 @@
 import { NextRequest } from "next/server";
+import { jsonAuthError, requireUser } from "@/lib/auth/session";
+import { completeGenerationQuota, releaseGenerationQuota } from "@/lib/generation/quota";
+import { getUpstreamImageConfig } from "@/lib/generation/upstream-config";
 
 export const runtime = "nodejs";
 
@@ -16,29 +19,36 @@ function extractOrigin(url: string): string {
  * 用于超时后重新检查任务结果，避免重复生成浪费 API 调用
  */
 export async function POST(request: NextRequest) {
-  const body = await request.json();
+  let authContext: Awaited<ReturnType<typeof requireUser>>;
+  let body: Record<string, unknown>;
 
-  const {
-    baseURL: rawBaseURL,
-    apiKey,
-    taskId,
-    useFullUrl = false,
-  } = body;
+  try {
+    authContext = await requireUser();
+    body = await request.json();
+  } catch (error) {
+    return jsonAuthError(error);
+  }
 
-  if (!rawBaseURL || !apiKey || !taskId) {
-    return new Response(
-      JSON.stringify({ success: false, error: "缺少必要参数" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
+  let upstreamConfig: ReturnType<typeof getUpstreamImageConfig>;
+  try {
+    upstreamConfig = getUpstreamImageConfig();
+  } catch (error) {
+    return jsonAuthError(error);
+  }
+
+  const { clientTaskId, taskId } = body;
+
+  if (typeof clientTaskId !== "string" || !clientTaskId || typeof taskId !== "string" || !taskId) {
+    return Response.json({ success: false, error: "缺少必要参数" }, { status: 400 });
   }
 
   try {
-    const baseURL = rawBaseURL.replace(/\/+$/, "");
-    const apiOrigin = useFullUrl ? extractOrigin(rawBaseURL) : baseURL;
+    const baseURL = upstreamConfig.baseURL.replace(/\/+$/, "");
+    const apiOrigin = upstreamConfig.useFullUrl ? extractOrigin(upstreamConfig.baseURL) : baseURL;
     const statusUrl = `${apiOrigin}/v1/media/status?task_id=${taskId}`;
 
     const statusRes = await fetch(statusUrl, {
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers: { Authorization: `Bearer ${upstreamConfig.apiKey}` },
     });
 
     if (!statusRes.ok) {
@@ -52,14 +62,15 @@ export async function POST(request: NextRequest) {
 
     if (statusData.is_final) {
       if (statusData.state === "failed") {
+        const errorMessage = statusData.error || "任务失败";
+        await releaseGenerationQuota(authContext.user.id, clientTaskId, errorMessage);
         return Response.json({
           success: false,
-          error: statusData.error || "任务失败",
+          error: errorMessage,
         });
       }
 
       if (statusData.state === "success" && statusData.result_url) {
-        // 下载图片并转为 base64
         const imageResponse = await fetch(statusData.result_url);
         const arrayBuffer = await imageResponse.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
@@ -69,6 +80,8 @@ export async function POST(request: NextRequest) {
         }
         const imageBase64 = btoa(binary);
 
+        await completeGenerationQuota(authContext.user.id, clientTaskId, taskId);
+
         return Response.json({
           success: true,
           imageBase64,
@@ -76,7 +89,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 任务仍在进行中
     const progress = statusData.progress && statusData.progress !== "0" && statusData.progress !== "0%"
       ? statusData.progress
       : null;

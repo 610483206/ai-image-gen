@@ -14,8 +14,12 @@ import {
   Ratio,
   Gem,
   Layers3,
+  AlertCircle,
 } from "lucide-react";
 import { ImageLightbox } from "@/components/image-lightbox";
+import { QuotaBadge } from "@/components/quota-badge";
+import { useAuth } from "@/components/auth/auth-provider";
+import { toast } from "sonner";
 
 export function InputArea() {
   const {
@@ -32,6 +36,7 @@ export function InputArea() {
     conversations,
     currentConversationId,
   } = useAppStore();
+  const { quota, isLoading: isAuthLoading, refresh: refreshAuth } = useAuth();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -47,6 +52,26 @@ export function InputArea() {
   const hasRunningTasks = currentConversation?.messages.some(
     (m) => m.role === "assistant" && m.tasks.some((t) => t.status === "running")
   );
+  const hasInput = draft.prompt.trim().length > 0 || draft.referenceImages.length > 0;
+  const requiredQuota = Math.max(draft.concurrency || 1, 1);
+  const isQuotaBlocked = isAuthLoading || !quota || quota.remaining < requiredQuota;
+  const resetTime = quota
+    ? new Date(quota.resetAt).toLocaleString("zh-CN", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+  const quotaBlockMessage = isAuthLoading
+    ? "正在同步额度，请稍后再试"
+    : !quota
+    ? "请先登录后再生成图片"
+    : quota.remaining <= 0
+      ? `今日额度已用完，${resetTime} 后重置`
+      : quota.remaining < requiredQuota
+        ? `剩余额度不足：本次需要 ${requiredQuota}，当前剩余 ${quota.remaining}，${resetTime} 后重置`
+        : "";
 
   const handleFileUpload = useCallback(
     (files: FileList | null) => {
@@ -149,12 +174,26 @@ export function InputArea() {
   );
 
   const handleSend = async () => {
-    if (!draft.prompt.trim() && draft.referenceImages.length === 0) return;
+    if (!hasInput) return;
+    if (isAuthLoading) {
+      toast.info("正在同步额度，请稍后再试");
+      return;
+    }
+    if (!quota) {
+      toast.error("请先登录后再生成图片");
+      return;
+    }
+    if (quota.remaining < requiredQuota) {
+      toast.error(quotaBlockMessage || `今日剩余额度不足，${resetTime} 后重置`);
+      return;
+    }
+
     setIsSending(true);
     try {
       await sendMessage();
     } finally {
       setIsSending(false);
+      await refreshAuth();
     }
   };
 
@@ -321,10 +360,14 @@ export function InputArea() {
             ) : (
               <Button
                 size="icon"
-                className="h-10 w-10 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90"
-                disabled={!draft.prompt.trim() && draft.referenceImages.length === 0 || isSending}
+                className={`h-10 w-10 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90 ${
+                  isQuotaBlocked ? "cursor-not-allowed opacity-55 hover:bg-primary" : ""
+                }`}
+                disabled={!hasInput || isSending}
                 onClick={handleSend}
-                aria-label="发送生成请求"
+                aria-disabled={isQuotaBlocked}
+                aria-label={quotaBlockMessage || "发送生成请求"}
+                title={quotaBlockMessage || "发送生成请求"}
               >
                 <ArrowUp className="h-4 w-4" />
               </Button>
@@ -334,6 +377,15 @@ export function InputArea() {
 
         {/* 参数工具栏 - 带提示 */}
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          <QuotaBadge />
+
+          {hasInput && isQuotaBlocked && quotaBlockMessage && (
+            <div className="flex min-h-9 items-center gap-2 rounded-full border border-destructive/25 bg-destructive/10 px-3 text-xs font-medium text-destructive">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span>{quotaBlockMessage}</span>
+            </div>
+          )}
+
           <div className="relative group">
             <select
               value={draft.selectedRatio}

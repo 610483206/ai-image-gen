@@ -1,4 +1,5 @@
-import { NextRequest } from "next/server";
+import { jsonAuthError, requireAdmin } from "@/lib/auth/session";
+import { getUpstreamImageConfig } from "@/lib/generation/upstream-config";
 
 export const runtime = "nodejs";
 
@@ -13,48 +14,49 @@ function extractApiRoot(url: string, useFullUrl: boolean): string {
 
   try {
     const parsed = new URL(cleaned);
-    // 完整 URL 模式下，只取 origin 作为根地址
     return parsed.origin;
   } catch {
     return cleaned;
   }
 }
 
-/** 测试 API 连接 - 通过服务端代理避免 CORS */
-export async function POST(request: NextRequest) {
-  const { baseURL, apiKey, useFullUrl = false } = await request.json();
+/** 测试平台 API 连接 - 管理员专用 */
+export async function POST() {
+  try {
+    await requireAdmin();
+  } catch (error) {
+    return jsonAuthError(error);
+  }
 
-  if (!baseURL || !apiKey) {
-    return Response.json(
-      { success: false, error: "缺少 baseURL 或 apiKey" },
-      { status: 400 }
-    );
+  let config: ReturnType<typeof getUpstreamImageConfig>;
+  try {
+    config = getUpstreamImageConfig();
+  } catch (error) {
+    return jsonAuthError(error);
   }
 
   try {
-    const apiRoot = extractApiRoot(baseURL, useFullUrl);
+    const apiRoot = extractApiRoot(config.baseURL, config.useFullUrl);
 
-    // 尝试标准 OpenAI /models 端点
     let res = await fetch(`${apiRoot}/v1/models`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers: { Authorization: `Bearer ${config.apiKey}` },
     });
 
-    // 如果 /v1/models 失败，尝试根路径 /models（部分中转站直接挂载在根路径）
     if (!res.ok) {
       res = await fetch(`${apiRoot}/models`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
+        headers: { Authorization: `Bearer ${config.apiKey}` },
       });
     }
 
     if (res.ok) {
       return Response.json({ success: true });
-    } else {
-      const data = await res.json().catch(() => null);
-      return Response.json({
-        success: false,
-        error: data?.error?.message || `HTTP ${res.status}`,
-      });
     }
+
+    const data = await res.json().catch(() => null);
+    return Response.json({
+      success: false,
+      error: data?.error?.message || `HTTP ${res.status}`,
+    });
   } catch (err) {
     return Response.json({
       success: false,

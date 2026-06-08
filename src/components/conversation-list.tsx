@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/use-app-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { UserMenu } from "@/components/auth/user-menu";
 import {
   Plus,
   Search,
@@ -132,6 +133,7 @@ export function ConversationList({ collapsed = false }: { collapsed?: boolean })
         >
           <Settings className="h-4 w-4" />
         </Button>
+        <UserMenu collapsed />
       </div>
     );
   }
@@ -194,6 +196,8 @@ export function ConversationList({ collapsed = false }: { collapsed?: boolean })
             />
           </div>
         )}
+
+        <UserMenu />
       </div>
 
       {/* 会话列表 */}
