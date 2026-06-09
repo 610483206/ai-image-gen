@@ -6,7 +6,7 @@ import {
   releaseGenerationQuota,
   reserveGenerationQuota,
 } from "@/lib/generation/quota";
-import { getUpstreamImageConfig } from "@/lib/generation/upstream-config";
+import { resolveUpstreamImageConfig } from "@/lib/generation/upstream-config";
 
 export const runtime = "edge";
 
@@ -78,9 +78,9 @@ export async function POST(request: NextRequest, context?: { env?: Env }) {
   }
 
   const IMAGES_BUCKET = context?.env?.IMAGES_BUCKET;
-  let upstreamConfig: ReturnType<typeof getUpstreamImageConfig>;
+  let upstreamConfig: Awaited<ReturnType<typeof resolveUpstreamImageConfig>>;
   try {
-    upstreamConfig = getUpstreamImageConfig();
+    upstreamConfig = await resolveUpstreamImageConfig(body.upstreamConfig);
   } catch (error) {
     return jsonAuthError(error);
   }

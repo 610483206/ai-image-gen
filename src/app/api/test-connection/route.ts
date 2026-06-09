@@ -1,12 +1,13 @@
-import { jsonAuthError, requireAdmin } from "@/lib/auth/session";
-import { getUpstreamImageConfig } from "@/lib/generation/upstream-config";
+import { NextRequest } from "next/server";
+import { jsonAuthError, requireAdmin, requireUser } from "@/lib/auth/session";
+import { getDefaultUpstreamImageConfig, resolveUpstreamImageConfig } from "@/lib/generation/upstream-config";
 
 export const runtime = "edge";
 
 /**
  * 从 URL 中提取 API 根地址
- * - 标准模式: "https://api.openai.com/v1" → "https://api.openai.com/v1"
- * - 完整 URL 模式: "https://api.ai6800.com/v1/media/generate" → "https://api.ai6800.com"
+ * - 标准模式: "https://api.openai.com/v1" -> "https://api.openai.com/v1"
+ * - 完整 URL 模式: "https://api.ai6800.com/v1/media/generate" -> "https://api.ai6800.com"
  */
 function extractApiRoot(url: string, useFullUrl: boolean): string {
   const cleaned = url.replace(/\/+$/, "");
@@ -20,47 +21,51 @@ function extractApiRoot(url: string, useFullUrl: boolean): string {
   }
 }
 
-/** 测试平台 API 连接 - 管理员专用 */
-export async function POST() {
+async function readJsonBody(request: NextRequest): Promise<Record<string, unknown>> {
   try {
-    await requireAdmin();
-  } catch (error) {
-    return jsonAuthError(error);
+    return (await request.json()) as Record<string, unknown>;
+  } catch {
+    return {};
   }
+}
 
-  let config: ReturnType<typeof getUpstreamImageConfig>;
-  try {
-    config = getUpstreamImageConfig();
-  } catch (error) {
-    return jsonAuthError(error);
-  }
+async function testConfig(config: Awaited<ReturnType<typeof getDefaultUpstreamImageConfig>>) {
+  const apiRoot = extractApiRoot(config.baseURL, config.useFullUrl);
 
-  try {
-    const apiRoot = extractApiRoot(config.baseURL, config.useFullUrl);
+  let res = await fetch(`${apiRoot}/v1/models`, {
+    headers: { Authorization: `Bearer ${config.apiKey}` },
+  });
 
-    let res = await fetch(`${apiRoot}/v1/models`, {
+  if (!res.ok) {
+    res = await fetch(`${apiRoot}/models`, {
       headers: { Authorization: `Bearer ${config.apiKey}` },
     });
+  }
 
-    if (!res.ok) {
-      res = await fetch(`${apiRoot}/models`, {
-        headers: { Authorization: `Bearer ${config.apiKey}` },
-      });
+  if (res.ok) {
+    return Response.json({ success: true });
+  }
+
+  const data = await res.json().catch(() => null);
+  return Response.json({
+    success: false,
+    error: data?.error?.message || `HTTP ${res.status}`,
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const body = await readJsonBody(request);
+  const userConfig = body.upstreamConfig ?? (body.baseURL || body.apiKey ? body : undefined);
+
+  try {
+    if (userConfig) {
+      await requireUser();
+      return await testConfig(await resolveUpstreamImageConfig(userConfig));
     }
 
-    if (res.ok) {
-      return Response.json({ success: true });
-    }
-
-    const data = await res.json().catch(() => null);
-    return Response.json({
-      success: false,
-      error: data?.error?.message || `HTTP ${res.status}`,
-    });
-  } catch (err) {
-    return Response.json({
-      success: false,
-      error: err instanceof Error ? err.message : "网络错误",
-    });
+    await requireAdmin();
+    return await testConfig(await getDefaultUpstreamImageConfig());
+  } catch (error) {
+    return jsonAuthError(error);
   }
 }

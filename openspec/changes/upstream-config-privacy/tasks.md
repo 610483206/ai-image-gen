@@ -1,0 +1,7 @@
+- [x] 新增 `app_settings` Supabase 迁移并同步到生产数据库
+- [x] 新增平台默认上游配置读取、保存和用户自定义配置解析逻辑
+- [x] 改造生成、任务重查和连接测试 API
+- [x] 改造普通用户 API 配置弹窗，隐藏平台默认 Base URL/API Key
+- [x] 新增管理员默认上游配置面板
+- [x] 更新 README
+- [x] 运行 TypeScript、lint 和构建验证

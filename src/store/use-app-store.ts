@@ -11,8 +11,11 @@ import {
 
 // ==================== 类型定义 ====================
 
+export type ApiConfigMode = "platform" | "custom";
+
 /** API 配置 */
-interface ApiConfig {
+export interface ApiConfig {
+  mode: ApiConfigMode;
   baseURL: string;
   apiKey: string;
   modelId: string;
@@ -161,6 +164,26 @@ function decodeApiKey(encoded: string): string {
   }
 }
 
+function normalizeApiConfig(config: Partial<ApiConfig> | undefined): ApiConfig {
+  if (!config || config.mode !== "custom") {
+    return {
+      mode: "platform",
+      baseURL: "",
+      apiKey: "",
+      modelId: "gpt-image-2",
+      useFullUrl: false,
+    };
+  }
+
+  return {
+    mode: "custom",
+    baseURL: config.baseURL || "",
+    apiKey: config.apiKey || "",
+    modelId: config.modelId || "gpt-image-2",
+    useFullUrl: Boolean(config.useFullUrl),
+  };
+}
+
 /** 生成唯一 ID */
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -263,6 +286,23 @@ function notifyQuotaChanged(): void {
   }
 }
 
+function getRequestUpstreamConfig():
+  | { baseURL: string; apiKey: string; modelId: string; useFullUrl: boolean }
+  | undefined {
+  const { apiConfig } = useAppStore.getState();
+  if (apiConfig.mode !== "custom") return undefined;
+
+  const apiKey = decodeApiKey(apiConfig.apiKey);
+  if (!apiConfig.baseURL || !apiKey) return undefined;
+
+  return {
+    baseURL: apiConfig.baseURL,
+    apiKey,
+    modelId: apiConfig.modelId,
+    useFullUrl: apiConfig.useFullUrl,
+  };
+}
+
 /** 通过 SSE 流式调用生图 API */
 async function streamGenerate(
   params: {
@@ -277,7 +317,10 @@ async function streamGenerate(
   const response = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      ...params,
+      upstreamConfig: getRequestUpstreamConfig(),
+    }),
     signal,
   });
 
@@ -484,22 +527,24 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       // ===== 配置默认值 =====
       apiConfig: {
-        baseURL: "https://jiuuij.de5.net/v1",
-        apiKey: encodeApiKey(
-          "sk-IhOMs9dDvupJKRgB5KCmlsirbf6Yrs59vuH7OsKlHhR8c3ht"
-        ),
+        mode: "platform",
+        baseURL: "",
+        apiKey: "",
         modelId: "gpt-image-2",
         useFullUrl: false,
       },
       setApiConfig: (config) =>
         set((state) => ({
-          apiConfig: {
+          apiConfig: normalizeApiConfig({
             ...state.apiConfig,
             ...config,
-            apiKey: config.apiKey
-              ? encodeApiKey(config.apiKey)
-              : state.apiConfig.apiKey,
-          },
+            apiKey:
+              config.mode === "platform"
+                ? ""
+                : config.apiKey !== undefined
+                  ? encodeApiKey(config.apiKey)
+                  : state.apiConfig.apiKey,
+          }),
         })),
 
       // ===== 会话列表 =====
@@ -1472,6 +1517,7 @@ export const useAppStore = create<AppState>()(
             body: JSON.stringify({
               clientTaskId: task.id,
               taskId: task.taskId,
+              upstreamConfig: getRequestUpstreamConfig(),
             }),
           });
 
@@ -1585,9 +1631,18 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "ai-image-gen-storage",
+      version: 2,
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<AppState> | undefined;
+        return {
+          ...state,
+          apiConfig: version < 2 ? normalizeApiConfig(undefined) : normalizeApiConfig(state?.apiConfig),
+        };
+      },
       // 只持久化配置相关字段
       partialize: (state) => ({
         apiConfig: {
+          mode: state.apiConfig.mode,
           baseURL: state.apiConfig.baseURL,
           apiKey: state.apiConfig.apiKey,
           modelId: state.apiConfig.modelId,
@@ -1601,6 +1656,7 @@ export const useAppStore = create<AppState>()(
 /** 获取解混淆后的 API Key */
 export function getDecodedApiKey(): string {
   const state = useAppStore.getState();
+  if (state.apiConfig.mode !== "custom") return "";
   return decodeApiKey(state.apiConfig.apiKey);
 }
 

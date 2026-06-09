@@ -172,7 +172,7 @@ ai-image-gen/
 | `UPSTREAM_USE_FULL_URL` | 是否把 `UPSTREAM_API_BASE_URL` 当完整请求 URL 使用 |
 | `DEFAULT_DAILY_QUOTA` | 新用户默认每日生图额度 |
 
-> 旧版前端 API Key 配置不再作为生图接口的信任来源；生图请求统一使用服务端环境变量中的平台 Key。
+> 平台默认上游配置可由管理员在 `/admin` 页面维护；环境变量作为首次启动和数据库未配置时的兜底。普通用户不会看到平台默认 Base URL 或 API Key，但可以在本地设置中填写自己的上游配置。
 
 ## 💬 多轮对话使用指南
 
@@ -209,7 +209,9 @@ ai-image-gen/
 
 ### Q: 如何更换平台 API？
 
-平台 API 由服务端环境变量控制：`UPSTREAM_API_BASE_URL`、`UPSTREAM_API_KEY`、`UPSTREAM_MODEL_ID`。普通用户不能通过前端覆盖平台 Key。
+管理员登录后进入 `/admin`，在“默认上游配置”中替换 Base URL、API Key、模型 ID 和完整 URL 模式。配置会保存到 Supabase `app_settings` 表；如果未保存数据库配置，则使用 `UPSTREAM_API_BASE_URL`、`UPSTREAM_API_KEY`、`UPSTREAM_MODEL_ID` 等环境变量兜底。
+
+普通用户在工作台的“API 配置”中只能选择平台默认或填写自己的上游信息，无法查看平台默认 Base URL/API Key。
 
 ### Q: 支持哪些模型？
 
@@ -233,8 +235,8 @@ ai-image-gen/
 
 请检查：
 1. Supabase 环境变量是否正确配置
-2. 是否已执行 `supabase/migrations/202606040001_auth_admin_quota.sql`
-3. 平台上游 API Key 是否正确配置
+2. 是否已执行 `supabase/migrations/202606040001_auth_admin_quota.sql`、`supabase/migrations/202606090001_app_upstream_settings.sql` 和 `supabase/migrations/202606090002_harden_app_upstream_settings.sql`
+3. 管理员默认上游配置或平台上游环境变量是否正确
 4. 用户账号是否启用且未超过每日配额
 
 ### Q: 如何实现多轮对话？

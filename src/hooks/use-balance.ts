@@ -21,6 +21,11 @@ export function useBalance() {
   const { apiConfig } = useAppStore();
 
   const fetchBalance = useCallback(async () => {
+    if (apiConfig.mode !== "custom") {
+      setBalance(null);
+      return;
+    }
+
     const apiKey = getDecodedApiKey();
     if (!apiKey) {
       setBalance(null);
@@ -82,7 +87,7 @@ export function useBalance() {
     } finally {
       setLoading(false);
     }
-  }, [apiConfig.baseURL]);
+  }, [apiConfig.baseURL, apiConfig.mode]);
 
   useEffect(() => {
     fetchBalance();
