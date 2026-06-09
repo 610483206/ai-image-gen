@@ -16,6 +16,13 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function hasSupabaseAuthCookie() {
+  if (typeof document === "undefined") return false;
+  return document.cookie
+    .split(";")
+    .some((cookie) => cookie.trim().startsWith("sb-") && cookie.includes("-auth-token"));
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<AppProfile | null>(null);
   const [quota, setQuota] = useState<QuotaSnapshot | null>(null);
@@ -53,7 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const isAuthPage = window.location.pathname.startsWith("/auth");
+    if (isAuthPage && !hasSupabaseAuthCookie()) {
+      setIsLoading(false);
+    } else {
+      void refresh();
+    }
 
     const handleQuotaRefresh = () => {
       void refresh();

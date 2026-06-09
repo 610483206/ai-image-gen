@@ -11,6 +11,14 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type OAuthProvider = "google" | "github";
 
+interface PasswordAuthResponse {
+  success?: boolean;
+  error?: string;
+  code?: string;
+  isNewUser?: boolean;
+  confirmationRequired?: boolean;
+}
+
 function GoogleIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
@@ -52,8 +60,11 @@ function getAuthErrorMessage(error: unknown) {
 export function AuthCard() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmationPending, setConfirmationPending] = useState(false);
   const [nextPath, setNextPath] = useState("/");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [oauthProvider, setOauthProvider] = useState<OAuthProvider | null>(null);
 
   useEffect(() => {
@@ -68,9 +79,39 @@ export function AuthCard() {
   const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
   const canSubmit = Boolean(normalizedEmail && password.length >= 6);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((seconds) => Math.max(seconds - 1, 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
+
   const getRedirectTo = () => {
     const redirectTo = new URL("/auth/callback", window.location.origin);
     return redirectTo.toString();
+  };
+
+  const postPasswordAuth = async (body: Record<string, string>) => {
+    const response = await fetch("/api/auth/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await response.json().catch(() => null)) as PasswordAuthResponse | null;
+
+    if (!response.ok || (!data?.success && !data?.confirmationRequired)) {
+      throw new Error(data?.error || "登录失败，请稍后重试");
+    }
+
+    return data;
+  };
+
+  const showConfirmationSent = (message = "确认邮件已发送，请查看邮箱") => {
+    document.cookie = `auth_next=${encodeURIComponent(nextPath)}; Max-Age=600; Path=/; SameSite=Lax`;
+    setConfirmationPending(true);
+    setResendCooldown(60);
+    toast.success(message);
   };
 
   const handlePasswordLogin = async (event: FormEvent<HTMLFormElement>) => {
@@ -79,28 +120,48 @@ export function AuthCard() {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/auth/password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, password }),
-      });
-      const data = (await response.json().catch(() => null)) as {
-        success?: boolean;
-        error?: string;
-        isNewUser?: boolean;
-      } | null;
+      const data = await postPasswordAuth({ email: normalizedEmail, password });
 
-      if (!response.ok || !data?.success) {
-        throw new Error(data?.error || "登录失败，请稍后重试");
+      if (data.confirmationRequired) {
+        showConfirmationSent();
+        return;
       }
 
-      toast.success(data.isNewUser ? "账号已创建并登录" : "登录成功");
+      toast.success(data.isNewUser ? "注册成功并登录" : "登录成功");
       window.location.assign(nextPath);
     } catch (error) {
       toast.error(getAuthErrorMessage(error));
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!canSubmit || resendCooldown > 0 || isResending) return;
+
+    setIsResending(true);
+    try {
+      const data = await postPasswordAuth({
+        action: "resend_confirmation",
+        email: normalizedEmail,
+        password,
+      });
+      if (data.confirmationRequired) {
+        showConfirmationSent("确认邮件已重新发送");
+        return;
+      }
+      toast.success("登录成功");
+      window.location.assign(nextPath);
+    } catch (error) {
+      toast.error(getAuthErrorMessage(error));
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  const resetConfirmationNotice = () => {
+    setConfirmationPending(false);
+    setResendCooldown(0);
   };
 
   const handleOAuthLogin = async (provider: OAuthProvider) => {
@@ -132,12 +193,17 @@ export function AuthCard() {
         <div>
           <CardTitle className="text-xl">登录 AI 绘画工作台</CardTitle>
           <CardDescription className="mt-2">
-            使用邮箱和密码登录；新邮箱会在首次登录时自动创建账号。
+            老用户使用邮箱密码登录；新邮箱首次注册需要点击邮件确认链接。
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={handlePasswordLogin}>
+          {confirmationPending && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              确认邮件已发送至 {normalizedEmail}，请点击邮件中的确认链接完成注册。确认成功后会自动登录，后续只需要邮箱密码。
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">邮箱</Label>
             <div className="relative">
@@ -146,10 +212,14 @@ export function AuthCard() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  resetConfirmationNotice();
+                }}
                 placeholder="you@example.com"
                 className="h-11 rounded-2xl pl-9"
                 autoComplete="email"
+                disabled={isSubmitting}
                 required
               />
             </div>
@@ -162,18 +232,39 @@ export function AuthCard() {
                 id="password"
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  resetConfirmationNotice();
+                }}
                 placeholder="至少 6 位字符"
                 className="h-11 rounded-2xl pl-9"
                 autoComplete="current-password"
+                disabled={isSubmitting}
                 minLength={6}
                 required
               />
             </div>
           </div>
-          <Button className="h-11 w-full rounded-2xl" type="submit" disabled={isSubmitting || oauthProvider !== null || !canSubmit}>
-            {isSubmitting ? "登录中..." : "邮箱登录 / 新用户自动注册"}
+          <Button
+            className="h-11 w-full rounded-2xl"
+            type="submit"
+            disabled={isSubmitting || isResending || oauthProvider !== null || !canSubmit}
+          >
+            {isSubmitting ? "处理中..." : "邮箱登录 / 新用户注册"}
           </Button>
+          {confirmationPending && (
+            <div className="grid gap-3">
+              <Button
+                className="h-10 rounded-2xl"
+                type="button"
+                variant="outline"
+                onClick={() => void handleResendConfirmation()}
+                disabled={isSubmitting || isResending || resendCooldown > 0 || !canSubmit}
+              >
+                {isResending ? "发送中..." : resendCooldown > 0 ? `重发 ${resendCooldown}s` : "重新发送确认邮件"}
+              </Button>
+            </div>
+          )}
         </form>
         <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
           <div className="h-px flex-1 bg-border/70" />
@@ -185,7 +276,7 @@ export function AuthCard() {
             className="h-11 rounded-2xl"
             type="button"
             variant="outline"
-            disabled={isSubmitting || oauthProvider !== null}
+            disabled={isSubmitting || isResending || oauthProvider !== null}
             onClick={() => void handleOAuthLogin("google")}
           >
             <GoogleIcon className="h-4 w-4" />
@@ -195,7 +286,7 @@ export function AuthCard() {
             className="h-11 rounded-2xl"
             type="button"
             variant="outline"
-            disabled={isSubmitting || oauthProvider !== null}
+            disabled={isSubmitting || isResending || oauthProvider !== null}
             onClick={() => void handleOAuthLogin("github")}
           >
             <GitHubIcon className="h-4 w-4" />

@@ -20,7 +20,9 @@ function decodeCookieValue(value: string | undefined) {
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const cookieNextPath = decodeCookieValue(request.cookies.get("oauth_next")?.value);
+  const cookieNextPath =
+    decodeCookieValue(request.cookies.get("auth_next")?.value) ||
+    decodeCookieValue(request.cookies.get("oauth_next")?.value);
   const nextPath = getSafeNextPath(
     requestUrl.searchParams.get("next") || cookieNextPath,
   );
@@ -31,6 +33,7 @@ export async function GET(request: NextRequest) {
 
     if (!error) {
       const response = NextResponse.redirect(new URL(nextPath, request.url));
+      response.cookies.delete("auth_next");
       response.cookies.delete("oauth_next");
       return response;
     }
@@ -40,6 +43,7 @@ export async function GET(request: NextRequest) {
   redirectUrl.searchParams.set("error", "auth_callback_failed");
   redirectUrl.searchParams.set("next", nextPath);
   const response = NextResponse.redirect(redirectUrl);
+  response.cookies.delete("auth_next");
   response.cookies.delete("oauth_next");
   return response;
 }

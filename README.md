@@ -61,13 +61,13 @@ pnpm dev
 
 1. 创建 Supabase 项目。
 2. 在 Supabase SQL Editor 中执行 `supabase/migrations/202606040001_auth_admin_quota.sql`。
-3. 在 Supabase Auth 中启用 Email/Password 登录；如需彻底避免 Supabase Auth 发确认邮件，请关闭邮箱确认。
-4. 在 Supabase Auth Providers 中启用 Google 和 GitHub，并把站点的 `/auth/callback` 加入允许的 Redirect URLs：
+3. 在 Supabase Auth 中启用 Email/Password 登录，并开启邮箱确认。新邮箱首次注册会收到 Supabase 默认确认链接，点击确认后完成注册；后续邮箱密码登录不会发送邮件。
+4. Supabase 免费版使用默认邮件服务时无需修改邮件模板；在 Supabase Auth URL Configuration 中把站点的 `/auth/callback` 加入允许的 Redirect URLs：
    - `http://localhost:3000/auth/callback`
    - `http://127.0.0.1:3000/auth/callback`
    - `https://img.appboot.top/auth/callback`
-   - Google/GitHub OAuth App 的回调地址填写 Supabase 回调：`https://knqbtzlwdaltwcffhdhg.supabase.co/auth/v1/callback`
-5. 复制 `.env.example` 为 `.env.local` 并填写 Supabase、管理员邮箱和平台上游 API 配置。
+5. 在 Supabase Auth Providers 中启用 Google 和 GitHub；Google/GitHub OAuth App 的回调地址填写 Supabase 回调：`https://knqbtzlwdaltwcffhdhg.supabase.co/auth/v1/callback`
+6. 复制 `.env.example` 为 `.env.local` 并填写 Supabase、管理员邮箱和平台上游 API 配置。
 
 管理员账号由 `ADMIN_EMAILS` 指定；对应邮箱首次登录或授权登录后，会自动获得管理员权限。系统不会生成默认密码；从旧邮件链接模式迁移过来的账号需要通过管理员重置密码，或直接绑定 Google/GitHub 授权登录。
 

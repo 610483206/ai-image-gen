@@ -40,20 +40,31 @@ async function updateSupabaseSession(request: NextRequest) {
   return { response, user };
 }
 
+function hasSupabaseAuthCookie(request: NextRequest) {
+  return request.cookies
+    .getAll()
+    .some((cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("-auth-token"));
+}
+
 export async function middleware(request: NextRequest) {
-  const { response, user } = await updateSupabaseSession(request);
   const { pathname } = request.nextUrl;
-
-  // 调试日志
-  console.log(`[Middleware] pathname: ${pathname}, user: ${user ? user.email : 'null'}`);
-
   const isAuthRoute = pathname.startsWith("/auth");
   const isApiRoute = pathname.startsWith("/api");
 
-  if (isApiRoute) return response;
+  if (isApiRoute) return NextResponse.next({ request });
+
+  if (!hasSupabaseAuthCookie(request)) {
+    if (isAuthRoute) return NextResponse.next({ request });
+
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/auth";
+    redirectUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  const { response, user } = await updateSupabaseSession(request);
 
   if (!user && !isAuthRoute) {
-    console.log(`[Middleware] Redirecting to /auth`);
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/auth";
     redirectUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
@@ -61,7 +72,6 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && isAuthRoute) {
-    console.log(`[Middleware] Redirecting to /`);
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/";
     redirectUrl.search = "";
