@@ -27,8 +27,8 @@
 
 ## API
 
-- `GET /api/admin/upstream-config`：管理员读取平台默认配置摘要。
-- `PUT /api/admin/upstream-config`：管理员保存平台默认配置。
+- `GET /api/admin/users?resource=upstream-config`：管理员读取平台默认配置摘要。
+- `PUT /api/admin/users?resource=upstream-config`：管理员保存平台默认配置。
 - `POST /api/test-connection`：有自定义配置时允许登录用户测试自己的配置；无自定义配置时仅管理员可测试平台默认配置。
 - `POST /api/generate`：自定义配置优先，否则使用平台默认配置。
 - `POST /api/check-task`：自定义配置优先，否则使用平台默认配置。

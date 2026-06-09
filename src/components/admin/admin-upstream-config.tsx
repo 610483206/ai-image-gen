@@ -41,7 +41,7 @@ export function AdminUpstreamConfig() {
   const loadConfig = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/admin/upstream-config", { cache: "no-store" });
+      const response = await fetch("/api/admin/users?resource=upstream-config", { cache: "no-store" });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.success) throw new Error(data?.error || "读取默认上游配置失败");
       applyConfig(data.config as UpstreamConfigSnapshot);
@@ -64,7 +64,7 @@ export function AdminUpstreamConfig() {
 
     setIsSaving(true);
     try {
-      const response = await fetch("/api/admin/upstream-config", {
+      const response = await fetch("/api/admin/users?resource=upstream-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
