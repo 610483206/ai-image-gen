@@ -3,7 +3,7 @@ import { jsonAuthError, requireUser } from "@/lib/auth/session";
 import { completeGenerationQuota, releaseGenerationQuota } from "@/lib/generation/quota";
 import { getUpstreamImageConfig } from "@/lib/generation/upstream-config";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 /** 从完整 URL 中提取 origin（域名+协议） */
 function extractOrigin(url: string): string {

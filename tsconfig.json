@@ -36,8 +36,6 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "electron",
-    "dist-electron"
+    "node_modules"
   ]
 }

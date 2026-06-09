@@ -1,6 +1,6 @@
 import { requireUser, jsonAuthError } from "@/lib/auth/session";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 export async function GET() {
   try {

@@ -1,7 +1,7 @@
 import { jsonAuthError, requireAdmin } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 function normalizeQuota(value: unknown): number | null {
   if (typeof value === "number" && Number.isInteger(value) && value >= 0) return value;

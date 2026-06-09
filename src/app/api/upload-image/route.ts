@@ -5,7 +5,7 @@ import { jsonAuthError, requireUser } from "@/lib/auth/session";
  * 返回可通过 /api/image/[key] 访问的公网 URL
  */
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 export async function POST(request: Request, context: { env: { IMAGES_BUCKET: KVNamespace } }) {
   try {

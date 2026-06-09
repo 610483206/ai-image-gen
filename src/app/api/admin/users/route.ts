@@ -2,7 +2,7 @@ import { jsonAuthError, requireAdmin } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { AdminUserRow } from "@/lib/auth/types";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 export async function GET() {
   try {

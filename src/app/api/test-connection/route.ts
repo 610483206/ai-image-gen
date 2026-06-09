@@ -1,7 +1,7 @@
 import { jsonAuthError, requireAdmin } from "@/lib/auth/session";
 import { getUpstreamImageConfig } from "@/lib/generation/upstream-config";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 /**
  * 从 URL 中提取 API 根地址

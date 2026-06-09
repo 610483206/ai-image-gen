@@ -8,7 +8,7 @@ import {
 } from "@/lib/generation/quota";
 import { getUpstreamImageConfig } from "@/lib/generation/upstream-config";
 
-export const runtime = "nodejs";
+export const runtime = "edge";
 
 interface Env {
   IMAGES_BUCKET: KVNamespace;
